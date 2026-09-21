@@ -806,6 +806,15 @@ export const useStore = create<BlockoutState>((set, get) => ({
         ...b,
         camera: { ...b.camera, marks: b.camera.marks.map((m) => ({ ...m, id: newId('cmark') })) }
       }))
+      // Drafts are explicitly for experimentation: preserve directing intent
+      // and provenance, but require fresh visual approval and remove AI locks.
+      if (clone.director) {
+        clone.director = {
+          ...clone.director,
+          heroFrameApproved: false,
+          locks: undefined
+        }
+      }
       scene.drafts = scene.drafts ?? []
       const version = scene.drafts.filter((d) => d.draftOf === mainId).length + 1
       clone.name = `${main.name} v${version}`
@@ -833,6 +842,7 @@ export const useStore = create<BlockoutState>((set, get) => ({
       main.cameraBank = draft.cameraBank ? structuredClone(draft.cameraBank) : undefined
       main.notes = draft.notes
       main.referenceVideo = draft.referenceVideo ? { ...draft.referenceVideo } : undefined
+      main.director = draft.director ? structuredClone(draft.director) : undefined
       promotedInto = main.id
     })
     if (promotedInto) {
