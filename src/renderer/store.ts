@@ -578,6 +578,7 @@ export const useStore = create<BlockoutState>((set, get) => ({
       const lastTime = track.marks.reduce((m, k) => Math.max(m, k.time + k.hold), -1)
       const t = track.marks.length === 0 ? 0 : Math.max(time, lastTime + 2)
       track.marks.push(createActorMark(position, Math.min(t, shot.duration), gait))
+      shot.director = { ...shot.director, heroFrameApproved: false }
     })
   },
 
@@ -591,6 +592,7 @@ export const useStore = create<BlockoutState>((set, get) => ({
       const lastTime = marks.reduce((m, k) => Math.max(m, k.time + k.hold), -1)
       const t = marks.length === 0 ? 0 : Math.max(time, lastTime + 2)
       marks.push(createCameraMark(position, Math.min(t, shot.duration), pan, tilt, focalLength))
+      shot.director = { ...shot.director, heroFrameApproved: false }
     })
   },
 
