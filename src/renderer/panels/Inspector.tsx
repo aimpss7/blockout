@@ -1326,7 +1326,10 @@ function CameraPoseSection({ scene, shot }: { scene: Scene; shot: Shot }): JSX.E
     mutate(label, (doc) => {
       const sh = findShotOrDraft(doc, scene.id, shot.id)
       const m = sh?.camera.marks.find((x) => x.id === id)
-      if (m) fn(m)
+      if (m) {
+        fn(m)
+        if (sh) sh.director = { ...sh.director, heroFrameApproved: false }
+      }
     })
   }
 
@@ -1581,7 +1584,10 @@ function CameraInspector({ scene, shot }: { scene: Scene; shot: Shot }): JSX.Ele
   const editCam = (label: string, fn: (c: Shot['camera']) => void): void => {
     mutate(label, (doc) => {
       const sh = findShotOrDraft(doc, scene.id, shot.id)
-      if (sh) fn(sh.camera)
+      if (sh) {
+        fn(sh.camera)
+        sh.director = { ...sh.director, heroFrameApproved: false }
+      }
     })
   }
 
@@ -1815,7 +1821,10 @@ function MarkInspector({
         const tk = sc?.blocking.find((b) => b.id === sh.blockingTakeId)
         target = tk?.tracks.find((t) => t.entityId === entityId)?.marks.find((m) => m.id === markId)
       }
-      if (target) fn(target)
+      if (target) {
+        fn(target)
+        sh.director = { ...sh.director, heroFrameApproved: false }
+      }
     })
   }
 
