@@ -739,6 +739,26 @@ const TOOLS = [
     }
   },
   {
+    name: 'import_motion_previs_camera',
+    description:
+      'Import a Motion Previs Studio v4 camera_motion.json as editable Blockout camera marks, anchored to the current shot camera. This is for measured camera language from a film/ad/reference, not for look/identity.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        _expectedStateToken: { type: 'string' },
+        cameraMotionPath: { type: 'string', description: 'Absolute path to camera_motion.json from a Motion Previs bundle.' },
+        targetFps: { type: 'number', description: 'Imported camera-mark density, 1–24fps; default 6.' },
+        durationMode: {
+          type: 'string',
+          enum: ['fit-shot', 'source'],
+          description: 'fit-shot retimes measured motion to current shot duration; source adopts Motion Previs duration.'
+        }
+      },
+      required: ['_expectedStateToken', 'cameraMotionPath'],
+      additionalProperties: false
+    }
+  },
+  {
     name: 'set_reference',
     description:
       'Attach a reference video to the active shot (the Motion Previs Studio handoff v1). The clip is copied into the project’s refs/ folder and shown as a ghost underlay (or picture-in-picture) so you can match blocking against it by eye. videoPath is an absolute path to the source clip.',
@@ -770,6 +790,7 @@ const DIRECTOR_TOOL_NAMES = new Set([
   'approve_hero_frame',
   'set_human_locks',
   'export_shot',
+  'import_motion_previs_camera',
   'set_reference'
 ])
 
