@@ -93,6 +93,12 @@ const TOOLS = [
               y: { type: 'number' },
               z: { type: 'number' },
               rotationDeg: { type: 'number' },
+              scale: { type: 'number', description: 'Uniform entity scale.' },
+              params: {
+                type: 'object',
+                description: 'Asset parameters. Primitives: cube/ramp/wall width,height,depth; cylinder radius,height; stairs width,height,depth,steps.',
+                additionalProperties: true
+              },
               marks: {
                 type: 'array',
                 items: {
@@ -184,6 +190,12 @@ const TOOLS = [
               y: { type: 'number' },
               z: { type: 'number' },
               rotationDeg: { type: 'number' },
+              scale: { type: 'number', description: 'Uniform entity scale.' },
+              params: {
+                type: 'object',
+                description: 'Asset parameters. Primitives: cube/ramp/wall width,height,depth; cylinder radius,height; stairs width,height,depth,steps.',
+                additionalProperties: true
+              },
               marks: {
                 type: 'array',
                 items: {
