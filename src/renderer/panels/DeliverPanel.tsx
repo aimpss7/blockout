@@ -30,8 +30,8 @@ export function DeliverPanel(): JSX.Element {
   const scene = doc?.scenes.find((s) => s.id === sceneId)
   const shot = scene?.shots.find((s) => s.id === shotId)
 
-  const [profileId, setProfileId] = useState(doc?.settings.defaultProfileId ?? 'seedance-2')
-  const [passes, setPasses] = useState({ clean: true, depth: true, normal: false })
+  const [profileId, setProfileId] = useState(doc?.settings.defaultProfileId ?? 'seedance-2.5')
+  const [passes, setPasses] = useState({ clean: true, depth: false, normal: false })
   const [labels, setLabels] = useState<'on' | 'stillsOnly' | 'off'>('stillsOnly')
   const [resolution, setResolution] = useState<ExportResolution>('auto')
 
