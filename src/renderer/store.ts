@@ -737,6 +737,7 @@ export const useStore = create<BlockoutState>((set, get) => ({
       shot.cameraBank[idx] = { name: shot.cameraName ?? 'A', camera: shot.camera }
       shot.camera = incoming.camera
       shot.cameraName = incoming.name
+      shot.director = { ...shot.director, heroFrameApproved: false }
     })
     set({ selection: { kind: 'camera' } })
   },
@@ -768,6 +769,7 @@ export const useStore = create<BlockoutState>((set, get) => ({
         marks: []
       }
       shot.cameraName = letter
+      shot.director = { ...shot.director, heroFrameApproved: false }
       added = letter
     })
     if (added) {
@@ -782,7 +784,10 @@ export const useStore = create<BlockoutState>((set, get) => ({
       const scene = doc.scenes.find((s) => s.id === sceneId)
       const shot =
         scene?.shots.find((s) => s.id === shotId) ?? scene?.drafts?.find((s) => s.id === shotId)
-      if (shot) shot.camera.marks = []
+      if (shot) {
+        shot.camera.marks = []
+        shot.director = { ...shot.director, heroFrameApproved: false }
+      }
     })
     get().toast('Camera move cleared — record or drop new marks.', 'info')
   },
