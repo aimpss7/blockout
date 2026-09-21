@@ -18,6 +18,8 @@ import type { ChoreoKind, FormationId, RoutineSpec } from '@engine/choreography'
 import type { FramingKind } from '../bus'
 import { CAMERA_RECIPES, directorStateToken, getCameraRecipe, reviewTimes } from '@engine/director'
 import { BUILTIN_PROFILES } from '@engine/profiles'
+import { ShotEvaluator } from '@engine/evaluate'
+import { motionPrevisToCameraSpecs, validateMotionPrevisCameraData } from '@engine/motion-previs'
 
 type Params = Record<string, unknown>
 type ControlResult = { ok: boolean; data?: unknown; error?: string }
@@ -1054,6 +1056,91 @@ async function execute(action: string, params: Params): Promise<unknown> {
       // Rendered through the SHOT camera at the playhead — what will export.
       const png = await renderStillPngForTest(useStore.getState().time, 960, 540)
       return { imageBase64: bufferToBase64(png) }
+    }
+
+    case 'import_motion_previs_camera': {
+      requireDoc()
+      assertExpectedState(params)
+      const cameraMotionPath = str(params, 'cameraMotionPath') ?? ''
+      if (!cameraMotionPath) throw new Error('cameraMotionPath is required.')
+      const folder = s.projectFolder
+      const scene = s.scene()
+      const shot = s.shot()
+      if (!folder || !scene || !shot) throw new Error('Open and save a project first.')
+
+      const locks = shot.director?.locks
+      if (locks?.camera || locks?.framing) {
+        throw new Error('human lock: camera/framing is protected. Clear the lock before importing measured camera motion.')
+      }
+
+      // Copy the source JSON into the project for provenance, then read it
+      // through Blockout's existing project-scoped file bridge.
+      const imported = await window.blockout.importReference(folder, cameraMotionPath)
+      const bytes = await window.blockout.readProjectFile(folder, imported.relativePath)
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(new TextDecoder().decode(new Uint8Array(bytes)))
+      } catch {
+        throw new Error('cameraMotionPath is not valid JSON.')
+      }
+      const data = validateMotionPrevisCameraData(parsed)
+
+      const evaluator = new ShotEvaluator(scene, shot)
+      const base = evaluator.evaluate(0).camera
+      const durationMode = str(params, 'durationMode') === 'source' ? 'source' : 'fit-shot'
+      const targetDuration = durationMode === 'source' ? data.duration : shot.duration
+      const targetFps = Math.min(24, Math.max(1, flt(params, 'targetFps') ?? 6))
+      const specs = motionPrevisToCameraSpecs(
+        data,
+        {
+          position: { ...base.position },
+          pan: base.pan,
+          tilt: base.tilt,
+          roll: base.roll,
+          focalLength: base.focalLength
+        },
+        { duration: targetDuration, targetFps }
+      )
+
+      const marks = specs.map((spec) => ({
+        id: newId('cmark'),
+        time: spec.time,
+        hold: 0,
+        easeIn: 0,
+        easeOut: 0,
+        position: { ...spec.position },
+        pan: spec.pan,
+        tilt: spec.tilt,
+        roll: spec.roll,
+        focalLength: locks?.lens ? base.focalLength : spec.focalLength
+      }))
+
+      s.mutate('agent: import Motion Previs camera', (doc) => {
+        const sc = doc.scenes.find((item) => item.id === useStore.getState().sceneId)
+        const sh = sc?.shots.find((item) => item.id === useStore.getState().shotId)
+        if (!sh) return
+        sh.camera.marks = marks
+        delete sh.camera.trackEntityId
+        if (durationMode === 'source') sh.duration = targetDuration
+        sh.director = {
+          ...sh.director,
+          cameraRecipeId: 'motion-previs-measured',
+          measuredCameraSource: imported.relativePath,
+          heroFrameApproved: false
+        }
+      })
+
+      return {
+        imported: true,
+        source: imported.relativePath,
+        sourceDuration: data.duration,
+        targetDuration,
+        sourceFps: data.fps,
+        targetFps,
+        markCount: marks.length,
+        averageConfidence: data.summary?.averageConfidence ?? null,
+        stateToken: currentStateToken()
+      }
     }
 
     case 'set_reference': {
