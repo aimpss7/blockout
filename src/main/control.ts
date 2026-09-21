@@ -25,12 +25,21 @@ const CONFIG_DIR = resolveConfigDir()
 const DISCOVERY_FILE = resolveConfigPath('control.json')
 const MAX_BODY = 10 * 1024 * 1024 // 10 MB
 const CONTROL_PROTOCOL_VERSION = 1
-const CONTROL_CAPABILITIES = ['health', 'rpc', 'set_reference', 'motion-handoff-v1'] as const
+const CONTROL_CAPABILITIES = [
+  'health',
+  'rpc',
+  'set_reference',
+  'motion-handoff-v1',
+  'agent-director-v1',
+  'state-token',
+  'review-shot',
+  'export-shot'
+] as const
 
 // Per-action timeouts: rendering/exporting legitimately take longer.
 function timeoutForAction(action: string): number {
   if (action === 'export_shot') return 600_000
-  if (action === 'screenshot') return 120_000
+  if (action === 'screenshot' || action === 'review_shot') return 120_000
   return 30_000
 }
 
