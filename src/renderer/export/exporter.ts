@@ -405,6 +405,15 @@ export async function exportShot(opts: ExportOptions): Promise<ExportResult> {
           schema: 1,
           profile: profile.id,
           principle: 'motion_and_look_are_separate',
+          heroFrame: {
+            time: shot.director?.heroFrameTime ?? null,
+            approved: shot.director?.heroFrameApproved ?? false,
+            authority: 'representative composition gate'
+          },
+          director: {
+            intent: shot.director?.intent ?? null,
+            cameraRecipeId: shot.director?.cameraRecipeId ?? null
+          },
           roles: {
             motion: {
               file: opts.passes.clean ? `${shotStem}_reference.mp4` : null,
