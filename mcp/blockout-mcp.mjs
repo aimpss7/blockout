@@ -45,8 +45,14 @@ const TOOLS = [
   {
     name: 'get_state',
     description:
-      'Call FIRST. Returns a summary of the current project, scene, and active shot: the placed entities (id, asset, label, position) and the choreography marks on the timeline (actor + camera). Coordinates are in meters, +X is right, -Z is forward/away from the default camera; heading 0 faces -Z; rotationDeg is clockwise seen from above.',
-    inputSchema: { type: 'object', properties: {}, additionalProperties: false }
+      'Call FIRST. Returns compact project/scene/shot state plus stateToken. Use detail="full" only when exact actor/camera marks are required. Coordinates: meters, +X right, -Z forward; heading 0 faces -Z.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        detail: { type: 'string', enum: ['compact', 'full'], description: 'Default compact to save context.' }
+      },
+      additionalProperties: false
+    }
   },
   {
     name: 'list_assets',
@@ -60,6 +66,93 @@ const TOOLS = [
           description: 'Optional category filter, e.g. "people", "vehicles", "environment".'
         }
       },
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'replace_scene',
+    description:
+      'Agent-first atomic shot blueprint. Replaces current staging + actor marks and updates the active shot in ONE undoable mutation. Requires the stateToken from get_state so human edits cannot be overwritten silently.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        _expectedStateToken: { type: 'string', description: 'Exact stateToken from the reviewed get_state result.' },
+        lighting: { type: 'string', description: 'Optional Blockout lighting preset id.' },
+        entities: {
+          type: 'array',
+          minItems: 1,
+          maxItems: 32,
+          items: {
+            type: 'object',
+            properties: {
+              key: { type: 'string', description: 'Stable blueprint key used by trackEntityKey.' },
+              assetId: { type: 'string' },
+              name: { type: 'string' },
+              label: { type: 'string' },
+              x: { type: 'number' },
+              y: { type: 'number' },
+              z: { type: 'number' },
+              rotationDeg: { type: 'number' },
+              marks: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    time: { type: 'number' },
+                    x: { type: 'number' },
+                    y: { type: 'number' },
+                    z: { type: 'number' },
+                    gait: { type: 'string' },
+                    hold: { type: 'number' },
+                    easeIn: { type: 'number' },
+                    easeOut: { type: 'number' },
+                    headingDeg: { type: 'number' },
+                    joints: { type: 'object', additionalProperties: { type: 'number' } }
+                  },
+                  additionalProperties: false
+                }
+              }
+            },
+            required: ['assetId'],
+            additionalProperties: false
+          }
+        },
+        shot: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            duration: { type: 'number' },
+            fps: { type: 'number' },
+            aspect: { type: 'string' },
+            rig: { type: 'string' },
+            notes: { type: 'string' },
+            trackEntityKey: { type: 'string' },
+            cameraMarks: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  time: { type: 'number' },
+                  x: { type: 'number' },
+                  y: { type: 'number' },
+                  z: { type: 'number' },
+                  panDeg: { type: 'number' },
+                  tiltDeg: { type: 'number' },
+                  rollDeg: { type: 'number' },
+                  focalLength: { type: 'number' },
+                  focusDistance: { type: 'number' },
+                  hold: { type: 'number' },
+                  easeIn: { type: 'number' },
+                  easeOut: { type: 'number' }
+                },
+                additionalProperties: false
+              }
+            }
+          },
+          additionalProperties: false
+        }
+      },
+      required: ['_expectedStateToken', 'entities', 'shot'],
       additionalProperties: false
     }
   },
@@ -341,6 +434,27 @@ const TOOLS = [
     }
   },
   {
+    name: 'list_camera_recipes',
+    description:
+      'Small directing vocabulary over the raw camera catalog. Recipes describe intent, shot function, suggested lens and pacing, then execute through deterministic Blockout camera moves.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false }
+  },
+  {
+    name: 'apply_camera_recipe',
+    description:
+      'Apply one director-level camera recipe around a subject. Requires stateToken so a reviewed human edit is not silently overwritten.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        _expectedStateToken: { type: 'string', description: 'Exact stateToken from get_state or review_shot.' },
+        recipeId: { type: 'string', description: 'Recipe id from list_camera_recipes.' },
+        entityId: { type: 'string', description: 'Optional subject entity id.' }
+      },
+      required: ['_expectedStateToken', 'recipeId'],
+      additionalProperties: false
+    }
+  },
+  {
     name: 'set_track_subject',
     description:
       'Aim-lock the shot camera onto an entity: the camera stays pointed at it no matter how its position moves (marks, recordings, presets). Pass no entityId to turn tracking off.',
@@ -381,6 +495,37 @@ const TOOLS = [
     name: 'stop',
     description: 'Stop timeline playback.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false }
+  },
+  {
+    name: 'review_shot',
+    description:
+      'Render 2–9 representative moments of the ACTIVE shot into ONE contact sheet. Prefer this over repeated screenshots. Returns the sheet plus the current stateToken.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        _expectedStateToken: { type: 'string', description: 'Optional token to ensure you are reviewing the state you expect.' },
+        maxFrames: { type: 'number', description: '2–9 frames, default 6.' }
+      },
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'export_shot',
+    description:
+      'Export the active shot as a deterministic generator-reference package. Default is a lean motion-reference MP4 + stills + prompt + metadata/reference roles; depth/normal are opt-in.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        _expectedStateToken: { type: 'string', description: 'Optional reviewed state token.' },
+        profileId: { type: 'string', description: 'Generator profile, e.g. seedance-2.5.' },
+        clean: { type: 'boolean' },
+        depth: { type: 'boolean' },
+        normal: { type: 'boolean' },
+        labels: { type: 'string', enum: ['on', 'stillsOnly', 'off'] },
+        resolution: { type: 'string', enum: ['auto', '720p', '1080p'] }
+      },
+      additionalProperties: false
+    }
   },
   {
     name: 'screenshot',
@@ -485,7 +630,23 @@ const TOOLS = [
   }
 ]
 
-const TOOL_NAMES = new Set(TOOLS.map((t) => t.name))
+const DIRECTOR_TOOL_NAMES = new Set([
+  'get_state',
+  'list_assets',
+  'replace_scene',
+  'list_camera_recipes',
+  'apply_camera_recipe',
+  'review_shot',
+  'export_shot',
+  'set_reference'
+])
+
+const EXPOSED_TOOLS =
+  process.env.BLOCKOUT_MCP_FULL_TOOLS === '1'
+    ? TOOLS
+    : TOOLS.filter((tool) => DIRECTOR_TOOL_NAMES.has(tool.name))
+
+const TOOL_NAMES = new Set(EXPOSED_TOOLS.map((t) => t.name))
 
 /* ------------------------------ control call ---------------------------- */
 
@@ -549,9 +710,13 @@ async function handleToolCall(id, params) {
     reply(id, { content: [{ type: 'text', text: error }], isError: true })
     return
   }
-  // Image special-case: an ok screenshot returns base64 PNG data.
+  // Image result can also carry tiny structured metadata (review times/state token)
+  // so the agent does not need a second state call after visual review.
   if (response && response.ok && response.data && typeof response.data.imageBase64 === 'string') {
-    reply(id, { content: [{ type: 'image', data: response.data.imageBase64, mimeType: 'image/png' }] })
+    const { imageBase64, ...meta } = response.data
+    const content = [{ type: 'image', data: imageBase64, mimeType: 'image/png' }]
+    if (Object.keys(meta).length > 0) content.push({ type: 'text', text: JSON.stringify(meta) })
+    reply(id, { content })
     return
   }
   reply(id, {
@@ -567,13 +732,13 @@ async function handle(msg) {
       reply(id, {
         protocolVersion: PROTOCOL_VERSION,
         capabilities: { tools: {} },
-        serverInfo: { name: 'blockout', version: '1.0.0' }
+        serverInfo: { name: 'blockout', version: '1.1.0-director' }
       })
       return
     case 'notifications/initialized':
       return // notification, no reply
     case 'tools/list':
-      reply(id, { tools: TOOLS })
+      reply(id, { tools: EXPOSED_TOOLS })
       return
     case 'tools/call':
       await handleToolCall(id, params)
