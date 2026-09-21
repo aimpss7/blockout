@@ -522,7 +522,7 @@ export const useStore = create<BlockoutState>((set, get) => ({
 
   addEntity(assetId, position) {
     const spec = assetSpec(assetId)
-    const sceneId = get().sceneId
+    const { sceneId, shotId } = get()
     const entity = createEntity(assetId, spec.name, position)
     get().mutate('add entity', (doc) => {
       const scene = doc.scenes.find((s) => s.id === sceneId)
@@ -531,6 +531,9 @@ export const useStore = create<BlockoutState>((set, get) => ({
       const count = scene.entities.filter((e) => e.assetId === assetId).length
       if (count > 0) entity.name = `${spec.name} ${count + 1}`
       scene.entities.push(entity)
+      const shot =
+        scene.shots.find((s) => s.id === shotId) ?? scene.drafts?.find((s) => s.id === shotId)
+      if (shot) shot.director = { ...shot.director, heroFrameApproved: false }
     })
     set({ selection: { kind: 'entity', entityId: entity.id } })
     return entity.id
