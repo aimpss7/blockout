@@ -1419,7 +1419,8 @@ function DirectorCameraRecipesSection({ scene, shot }: { scene: Scene; shot: Sho
     mutate(`director recipe: ${recipe.name}`, (doc) => {
       const sh = findShotOrDraft(doc, scene.id, shot.id)
       if (!sh) return
-      if (recipe.defaultLens !== null && !sh.director?.locks?.lens) {
+      // Locks protect against AI tools, not the human pressing this button.
+      if (recipe.defaultLens !== null) {
         for (const mark of sh.camera.marks) mark.focalLength = recipe.defaultLens
       }
       sh.director = {
