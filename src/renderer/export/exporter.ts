@@ -221,6 +221,67 @@ export async function renderStillPngForTest(t: number, width = 320, height = 180
   return canvasPng(canvas)
 }
 
+/**
+ * Agent review hook: render representative moments from ONE shot into a single
+ * contact sheet. This replaces repeated screenshot tool calls and therefore
+ * keeps both latency and LLM context use low.
+ */
+export async function renderReviewSheetPng(
+  times: number[],
+  cellWidth = 480,
+  cellHeight = 270,
+  columns = 3
+): Promise<ArrayBuffer> {
+  const s = useStore.getState()
+  const shot = s.shot()
+  const manager = getSceneManager()
+  if (!shot || !manager) throw new Error('No shot selected or viewport not ready.')
+  const safeTimes = times.length > 0 ? times : [0]
+  const cols = Math.min(Math.max(1, columns), safeTimes.length)
+  const rows = Math.ceil(safeTimes.length / cols)
+  const pad = 18
+  const captionH = 30
+  const sheet = document.createElement('canvas')
+  sheet.width = cols * cellWidth + (cols + 1) * pad
+  sheet.height = rows * (cellHeight + captionH) + (rows + 1) * pad
+  const ctx = sheet.getContext('2d')
+  if (!ctx) throw new Error('2D canvas unavailable.')
+  ctx.fillStyle = '#111113'
+  ctx.fillRect(0, 0, sheet.width, sheet.height)
+
+  const { canvas, renderer } = getExportRenderer()
+  const ratio = ASPECT_RATIOS[shot.aspect]
+  let tw = cellWidth
+  let th = Math.round(cellWidth / ratio)
+  if (th > cellHeight) {
+    th = cellHeight
+    tw = Math.round(cellHeight * ratio)
+  }
+  canvas.width = tw
+  canvas.height = th
+
+  manager.suspendLive = true
+  try {
+    for (let i = 0; i < safeTimes.length; i++) {
+      const t = Math.max(0, Math.min(shot.duration, safeTimes[i]!))
+      manager.renderFrameAt(renderer, t, tw, th, 'clean', { showLabels: true })
+      const col = i % cols
+      const row = Math.floor(i / cols)
+      const x = pad + col * (cellWidth + pad)
+      const y = pad + row * (cellHeight + captionH + pad)
+      ctx.drawImage(canvas, x + Math.floor((cellWidth - tw) / 2), y + Math.floor((cellHeight - th) / 2))
+      ctx.fillStyle = '#ececf1'
+      ctx.font = '600 15px -apple-system, sans-serif'
+      ctx.fillText(`${shot.name} · t=${t.toFixed(2)}s`, x, y + cellHeight + 21)
+    }
+    const blob = await new Promise<Blob | null>((resolve) => sheet.toBlob(resolve, 'image/png'))
+    if (!blob) throw new Error('PNG encode failed')
+    return blob.arrayBuffer()
+  } finally {
+    manager.suspendLive = false
+  }
+}
+
 /** Raw-pixel variant for the determinism diagnostic. */
 export function renderRawForTest(t: number, width = 320, height = 180, doubleRender = false): number[] {
   const manager = getSceneManager()
@@ -336,6 +397,41 @@ export async function exportShot(opts: ExportOptions): Promise<ExportResult> {
     // --- Prompt, metadata, ComfyUI workflow
     await window.blockout.exportWriteFile(`${pkg}/prompt.txt`, generatePrompt(scene, shot, profile) + '\n')
     await window.blockout.exportWriteFile(`${pkg}/metadata.json`, buildMetadata(scene, shot, profile))
+    const shotStem = sanitize(shot.name)
+    await window.blockout.exportWriteFile(
+      `${pkg}/reference_roles.json`,
+      JSON.stringify(
+        {
+          schema: 1,
+          profile: profile.id,
+          principle: 'motion_and_look_are_separate',
+          roles: {
+            motion: {
+              file: opts.passes.clean ? `${shotStem}_reference.mp4` : null,
+              authority: ['camera trajectory', 'framing', 'blocking', 'screen direction', 'timing']
+            },
+            composition: {
+              folder: 'stills/',
+              authority: ['key compositions', 'subject placement']
+            },
+            identity: {
+              source: 'external',
+              authority: ['character identity', 'product identity', 'wardrobe']
+            },
+            location: {
+              source: 'external',
+              authority: ['environment appearance']
+            },
+            style: {
+              source: 'external',
+              authority: ['lighting look', 'palette', 'render / photographic style']
+            }
+          }
+        },
+        null,
+        2
+      ) + '\n'
+    )
     if (profile.refModes.includes('depthVideo') || profile.id.startsWith('wan') || profile.id.startsWith('ltx')) {
       const workflow = buildComfyWorkflow(profile, shot, `${sanitize(shot.name)}_depth.mp4`, generatePrompt(scene, shot, profile))
       await window.blockout.exportWriteFile(`${pkg}/comfyui-workflow.json`, workflow)
@@ -355,6 +451,7 @@ export async function exportShot(opts: ExportOptions): Promise<ExportResult> {
         `  stills/           frame at every camera mark + first/last + top-down blocking diagram`,
         `  prompt.txt        copy-paste prompt tailored to ${profile.name}`,
         `  metadata.json     machine-readable marks/lenses/timings`,
+        `  reference_roles.json  tells the generator/agent which reference owns motion vs appearance`,
         ``
       ]
         .filter((l): l is string => l !== null)
