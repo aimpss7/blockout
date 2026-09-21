@@ -213,6 +213,8 @@ export interface ShotDirectorState {
   intent?: string
   /** Last high-level camera recipe applied by the agent. */
   cameraRecipeId?: string
+  /** Project-relative provenance for a Motion Previs camera_motion.json import. */
+  measuredCameraSource?: string
   /** Representative frame used as the visual approval gate. */
   heroFrameTime?: number
   /** True only after an explicit human/agent approval action. */
