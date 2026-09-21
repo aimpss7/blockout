@@ -2008,6 +2008,22 @@ function MarkInspector({
 
       {cameraMark && (
         <div className="panel-section">
+          <button
+            className="btn primary"
+            style={{ width: '100%' }}
+            onClick={() => setSelection({ kind: 'camera' })}
+          >
+            Edit camera pose at this mark
+          </button>
+          <p style={{ color: 'var(--text-faint)', fontSize: 11, lineHeight: 1.4, marginTop: 7 }}>
+            The playhead is already on this keyframe. Open the Camera panel to adjust position,
+            aim, lens, or rig without touching a neighboring mark.
+          </p>
+        </div>
+      )}
+
+      {cameraMark && (
+        <div className="panel-section">
           <div className="panel-title">Optics</div>
           <div className="field">
             <label>Focal length (mm)</label>
