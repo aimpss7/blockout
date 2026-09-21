@@ -5954,53 +5954,72 @@ function envHouseFull(group: THREE.Group): EnvResult {
 // PRIMITIVES
 // ---------------------------------------------------------------------------
 
-function buildPrimitive(assetId: string): BuiltAsset {
+function buildPrimitive(assetId: string, params?: Record<string, number | string>): BuiltAsset {
   const group = new THREE.Group()
   group.name = assetId
+  const dim = (key: string, fallback: number, min = 0.05, max = 100): number => {
+    const raw = params?.[key]
+    return typeof raw === 'number' && Number.isFinite(raw)
+      ? THREE.MathUtils.clamp(raw, min, max)
+      : fallback
+  }
   let height = 1
 
   switch (assetId) {
     case 'prim.cube': {
-      const b = box(1, 1, 1)
-      b.position.y = 0.5
+      const width = dim('width', 1)
+      height = dim('height', 1)
+      const depth = dim('depth', 1)
+      const b = box(width, height, depth)
+      b.position.y = height * 0.5
       group.add(b)
       break
     }
     case 'prim.cylinder': {
-      const c = cyl(0.5, 0.5, 1)
-      c.position.y = 0.5
+      const radius = dim('radius', 0.5)
+      height = dim('height', 1)
+      const c = cyl(radius, radius, height)
+      c.position.y = height * 0.5
       group.add(c)
       break
     }
     case 'prim.ramp': {
-      height = 1
-      group.add(buildWedge(1, 1, 1))
+      const width = dim('width', 1)
+      height = dim('height', 1)
+      const depth = dim('depth', 1)
+      group.add(buildWedge(width, height, depth))
       break
     }
     case 'prim.wall': {
-      height = 2.7
-      const w = box(3, 2.7, 0.15)
-      w.position.y = 1.35
+      const width = dim('width', 3)
+      height = dim('height', 2.7)
+      const depth = dim('depth', 0.15)
+      const w = box(width, height, depth)
+      w.position.y = height * 0.5
       group.add(w)
       break
     }
     case 'prim.stairs': {
-      height = 2
-      const steps = 5
+      height = dim('height', 2)
+      const width = dim('width', 1.2)
+      const totalDepth = dim('depth', 2)
+      const steps = Math.round(dim('steps', 5, 2, 24))
       const rise = height / steps
-      const run = 0.4
-      const width = 1.2
+      const run = totalDepth / steps
       for (let i = 0; i < steps; i++) {
         const stepH = rise * (i + 1)
         const step = box(width, stepH, run, 0x86868e)
-        step.position.set(0, stepH * 0.5, run * 0.5 - i * run)
+        step.position.set(0, stepH * 0.5, totalDepth * 0.5 - run * 0.5 - i * run)
         group.add(step)
       }
       break
     }
     default: {
-      const b = box(1, 1, 1)
-      b.position.y = 0.5
+      const width = dim('width', 1)
+      height = dim('height', 1)
+      const depth = dim('depth', 1)
+      const b = box(width, height, depth)
+      b.position.y = height * 0.5
       group.add(b)
     }
   }
@@ -6132,7 +6151,7 @@ export function buildAsset(assetId: string, params?: Record<string, number | str
   if (assetId.startsWith('furniture.')) return buildFurniture(assetId)
   if (assetId.startsWith('prop.')) return buildProp(assetId)
   if (assetId.startsWith('env.')) return buildEnv(assetId)
-  if (assetId.startsWith('prim.')) return buildPrimitive(assetId)
+  if (assetId.startsWith('prim.')) return buildPrimitive(assetId, params)
   return buildFallback(assetId)
 }
 
