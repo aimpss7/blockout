@@ -1456,6 +1456,111 @@ function CameraMovesSection({ scene }: { scene: Scene }): JSX.Element {
   )
 }
 
+/* ---------------------- AI director approval ---------------------- */
+
+function DirectorApprovalSection({ scene, shot }: { scene: Scene; shot: Shot }): JSX.Element {
+  const mutate = useMutate()
+  const time = useStore((s) => s.time)
+  const director = shot.director
+  const locks = director?.locks ?? {}
+
+  const editDirector = (label: string, fn: (sh: Shot) => void): void => {
+    mutate(label, (doc) => {
+      const sh = findShotOrDraft(doc, scene.id, shot.id)
+      if (sh) fn(sh)
+    })
+  }
+
+  const setLock = (key: 'camera' | 'lens' | 'framing' | 'staging', value: boolean): void => {
+    editDirector('AI director lock', (sh) => {
+      sh.director = {
+        ...sh.director,
+        locks: { ...sh.director?.locks, [key]: value }
+      }
+    })
+  }
+
+  const approveHero = (): void => {
+    editDirector('approve hero frame', (sh) => {
+      sh.director = {
+        ...sh.director,
+        heroFrameTime: clamp(time, 0, sh.duration),
+        heroFrameApproved: true,
+        locks: {
+          ...sh.director?.locks,
+          camera: true,
+          lens: true,
+          framing: true
+        }
+      }
+    })
+  }
+
+  return (
+    <div className="panel-section">
+      <div className="panel-title">AI director</div>
+      <p style={{ color: 'var(--text-faint)', fontSize: 11, lineHeight: 1.4, marginBottom: 8 }}>
+        Hero Frame First: approve the composition you want to preserve, then let the agent work
+        around it. Human locks only restrict agent tools — manual editing stays available.
+      </p>
+
+      <button
+        className={director?.heroFrameApproved ? 'btn' : 'btn primary'}
+        style={{ width: '100%', marginBottom: 8 }}
+        onClick={approveHero}
+      >
+        {director?.heroFrameApproved
+          ? `Re-approve hero frame at ${time.toFixed(2)}s`
+          : `Approve hero frame at ${time.toFixed(2)}s`}
+      </button>
+
+      {director?.heroFrameApproved && (
+        <p style={{ color: 'var(--text-dim)', fontSize: 11, margin: '0 0 8px' }}>
+          Approved at {(director.heroFrameTime ?? 0).toFixed(2)}s
+          {director.cameraRecipeId ? ` · ${director.cameraRecipeId}` : ''}
+        </p>
+      )}
+
+      {([
+        ['camera', 'Protect camera path from AI'],
+        ['lens', 'Protect lens from AI'],
+        ['framing', 'Protect framing from AI'],
+        ['staging', 'Protect scene staging from AI']
+      ] as const).map(([key, label]) => (
+        <label
+          key={key}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, margin: '5px 0' }}
+        >
+          <input
+            type="checkbox"
+            checked={locks[key] === true}
+            onChange={(e) => setLock(key, e.target.checked)}
+            style={{ width: 'auto' }}
+          />
+          {label}
+        </label>
+      ))}
+
+      {(locks.camera || locks.lens || locks.framing || locks.staging) && (
+        <button
+          className="btn"
+          style={{ width: '100%', marginTop: 6 }}
+          onClick={() =>
+            editDirector('clear AI director locks', (sh) => {
+              sh.director = {
+                ...sh.director,
+                locks: { ...sh.director?.locks, camera: false, lens: false, framing: false, staging: false }
+              }
+            })
+          }
+        >
+          Unlock camera/staging for AI
+        </button>
+      )}
+    </div>
+  )
+}
+
 /* =========================== C) Camera ============================= */
 
 function CameraInspector({ scene, shot }: { scene: Scene; shot: Shot }): JSX.Element {
@@ -1501,6 +1606,8 @@ function CameraInspector({ scene, shot }: { scene: Scene; shot: Shot }): JSX.Ele
           </button>
         </div>
       </div>
+
+      <DirectorApprovalSection scene={scene} shot={shot} />
 
       <div className="panel-section">
         <div className="panel-title">Camera</div>
