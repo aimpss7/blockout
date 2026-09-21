@@ -50,7 +50,7 @@ export function exportDims(
   const ratio = ASPECT_RATIOS[aspect]
   if (resolution !== 'auto') {
     // Pin the short edge (720p → 1280×720 at 16:9, 720×1280 at 9:16) —
-    // Seedance only accepts 720p reference files.
+    // 720p is the compatibility / lightweight reference option.
     const short = resolution === '720p' ? 720 : 1080
     if (ratio >= 1) return { width: evenDim(short * ratio), height: short }
     return { width: short, height: evenDim(short / ratio) }
