@@ -157,6 +157,97 @@ const TOOLS = [
     }
   },
   {
+    name: 'compile_shot',
+    description:
+      'Preferred director tool. In one request: atomically replace staging/blocking/shot, optionally apply a high-level camera recipe, and set directing intent + hero-frame candidate. Requires the reviewed stateToken.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        _expectedStateToken: { type: 'string' },
+        intent: { type: 'string', description: 'Short directing intent, e.g. "quiet product reveal".' },
+        cameraRecipeId: { type: 'string', description: 'Optional recipe from list_camera_recipes.' },
+        cameraSubjectKey: { type: 'string', description: 'Entity key from entities[] used as the camera-recipe subject.' },
+        heroFrameTime: { type: 'number', description: 'Candidate representative frame time in seconds; approval happens separately.' },
+        lighting: { type: 'string' },
+        entities: {
+          type: 'array',
+          minItems: 1,
+          maxItems: 32,
+          items: {
+            type: 'object',
+            properties: {
+              key: { type: 'string' },
+              assetId: { type: 'string' },
+              name: { type: 'string' },
+              label: { type: 'string' },
+              x: { type: 'number' },
+              y: { type: 'number' },
+              z: { type: 'number' },
+              rotationDeg: { type: 'number' },
+              marks: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    time: { type: 'number' },
+                    x: { type: 'number' },
+                    y: { type: 'number' },
+                    z: { type: 'number' },
+                    gait: { type: 'string' },
+                    hold: { type: 'number' },
+                    easeIn: { type: 'number' },
+                    easeOut: { type: 'number' },
+                    headingDeg: { type: 'number' },
+                    joints: { type: 'object', additionalProperties: { type: 'number' } }
+                  },
+                  additionalProperties: false
+                }
+              }
+            },
+            required: ['key', 'assetId'],
+            additionalProperties: false
+          }
+        },
+        shot: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            duration: { type: 'number' },
+            fps: { type: 'number' },
+            aspect: { type: 'string' },
+            rig: { type: 'string' },
+            notes: { type: 'string' },
+            trackEntityKey: { type: 'string' },
+            cameraMarks: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  time: { type: 'number' },
+                  x: { type: 'number' },
+                  y: { type: 'number' },
+                  z: { type: 'number' },
+                  panDeg: { type: 'number' },
+                  tiltDeg: { type: 'number' },
+                  rollDeg: { type: 'number' },
+                  focalLength: { type: 'number' },
+                  focusDistance: { type: 'number' },
+                  hold: { type: 'number' },
+                  easeIn: { type: 'number' },
+                  easeOut: { type: 'number' }
+                },
+                additionalProperties: false
+              }
+            }
+          },
+          additionalProperties: false
+        }
+      },
+      required: ['_expectedStateToken', 'entities', 'shot'],
+      additionalProperties: false
+    }
+  },
+  {
     name: 'add_entity',
     description:
       'Place a new entity on the ground. x/z in meters (+X right, -Z away); rotationDeg is clockwise from above with 0 facing -Z. Returns the new entity id.',
@@ -455,6 +546,41 @@ const TOOLS = [
     }
   },
   {
+    name: 'set_human_locks',
+    description:
+      'Protect human-approved decisions from agent mutations. Camera/framing locks block camera recipes; lens preserves focal lengths; staging/blocking locks block atomic shot-plan replacement.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        _expectedStateToken: { type: 'string' },
+        camera: { type: 'boolean' },
+        lens: { type: 'boolean' },
+        framing: { type: 'boolean' },
+        staging: { type: 'boolean' },
+        blockingEntityIds: { type: 'array', items: { type: 'string' } }
+      },
+      required: ['_expectedStateToken'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'approve_hero_frame',
+    description:
+      'Approve the representative frame after review. By default locks camera, lens, and framing so the approved composition cannot be silently changed by later agent work.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        _expectedStateToken: { type: 'string' },
+        time: { type: 'number', description: 'Hero-frame time; defaults to current playhead.' },
+        lockCamera: { type: 'boolean', description: 'Default true.' },
+        lockLens: { type: 'boolean', description: 'Default true.' },
+        lockFraming: { type: 'boolean', description: 'Default true.' }
+      },
+      required: ['_expectedStateToken'],
+      additionalProperties: false
+    }
+  },
+  {
     name: 'set_track_subject',
     description:
       'Aim-lock the shot camera onto an entity: the camera stays pointed at it no matter how its position moves (marks, recordings, presets). Pass no entityId to turn tracking off.',
@@ -522,7 +648,11 @@ const TOOLS = [
         depth: { type: 'boolean' },
         normal: { type: 'boolean' },
         labels: { type: 'string', enum: ['on', 'stillsOnly', 'off'] },
-        resolution: { type: 'string', enum: ['auto', '720p', '1080p'] }
+        resolution: { type: 'string', enum: ['auto', '720p', '1080p'] },
+        requireApprovedHeroFrame: {
+          type: 'boolean',
+          description: 'Defaults true for seedance-2.5; set false only for exploratory exports.'
+        }
       },
       additionalProperties: false
     }
@@ -633,10 +763,12 @@ const TOOLS = [
 const DIRECTOR_TOOL_NAMES = new Set([
   'get_state',
   'list_assets',
-  'replace_scene',
+  'compile_shot',
   'list_camera_recipes',
   'apply_camera_recipe',
   'review_shot',
+  'approve_hero_frame',
+  'set_human_locks',
   'export_shot',
   'set_reference'
 ])
