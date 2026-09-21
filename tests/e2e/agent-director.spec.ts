@@ -1,0 +1,144 @@
+/**
+ * Agent Director e2e: prove the high-level MCP/control workflow that is meant
+ * to replace dozens of low-level tool calls.
+ */
+
+import { _electron as electron, test, expect, type ElectronApplication, type Page } from '@playwright/test'
+import { existsSync, mkdtempSync, readFileSync } from 'fs'
+import { homedir, tmpdir } from 'os'
+import { join } from 'path'
+
+let app: ElectronApplication
+let page: Page
+let port = 0
+let token = ''
+let smokeDir = ''
+
+async function rpc<T>(
+  action: string,
+  params: Record<string, unknown> = {}
+): Promise<{ ok: boolean; data?: T; error?: string }> {
+  const res = await fetch(`http://127.0.0.1:${port}/rpc`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ action, params })
+  })
+  expect(res.status).toBe(200)
+  return (await res.json()) as { ok: boolean; data?: T; error?: string }
+}
+
+test.beforeAll(async () => {
+  smokeDir = mkdtempSync(join(tmpdir(), 'blockout-agent-director-'))
+  app = await electron.launch({
+    args: ['out/main/index.js'],
+    env: { ...process.env, BLOCKOUT_SMOKE_DIR: smokeDir }
+  })
+  page = await app.firstWindow()
+  await page.waitForLoadState('domcontentloaded')
+  await page.getByRole('button', { name: 'New Project' }).click()
+  await expect(page.locator('.mode-switch')).toBeVisible({ timeout: 30_000 })
+
+  const configDir =
+    process.platform === 'win32'
+      ? join(process.env.APPDATA || join(homedir(), 'AppData', 'Roaming'), 'blockout')
+      : join(homedir(), '.config', 'blockout')
+  const descriptor = JSON.parse(readFileSync(join(configDir, 'control.json'), 'utf8')) as {
+    port: number
+    token: string
+  }
+  port = descriptor.port
+  token = descriptor.token
+})
+
+test.afterAll(async () => {
+  await app?.close()
+})
+
+test('atomic shot plan → camera recipe → one-sheet review → Seedance export', async () => {
+  const first = await rpc<{ stateToken: string }>('get_state')
+  expect(first.ok).toBe(true)
+  const initialToken = first.data!.stateToken
+
+  const replaced = await rpc<{
+    stateToken: string
+    entities: Record<string, string>
+  }>('replace_scene', {
+    _expectedStateToken: initialToken,
+    lighting: 'day',
+    entities: [
+      {
+        key: 'hero',
+        assetId: 'person.man',
+        label: 'HERO',
+        x: 0,
+        z: 0,
+        marks: [
+          { time: 0, x: 0, z: 0, gait: 'stand' },
+          { time: 1, x: 0.8, z: -0.5, gait: 'walk' }
+        ]
+      },
+      {
+        key: 'car',
+        assetId: 'vehicle.suv',
+        label: 'CAR',
+        x: 2.2,
+        z: -2,
+        rotationDeg: 15
+      }
+    ],
+    shot: {
+      name: '1A',
+      duration: 1,
+      fps: 24,
+      aspect: '16:9',
+      rig: 'dolly',
+      cameraMarks: [
+        { time: 0, x: -4, y: 1.5, z: 4, panDeg: 40, tiltDeg: -3, focalLength: 35 },
+        { time: 1, x: -3.2, y: 1.5, z: 3.3, panDeg: 40, tiltDeg: -3, focalLength: 35 }
+      ]
+    }
+  })
+  expect(replaced.ok).toBe(true)
+  expect(replaced.data?.entities.hero).toBeTruthy()
+  expect(replaced.data?.stateToken).not.toBe(initialToken)
+
+  // Old reviewed state must not overwrite the new scene.
+  const stale = await rpc('replace_scene', {
+    _expectedStateToken: initialToken,
+    entities: [{ assetId: 'person.man', x: 0, z: 0 }],
+    shot: { duration: 1 }
+  })
+  expect(stale.ok).toBe(false)
+  expect(stale.error).toContain('stale state')
+
+  const recipes = await rpc<{ id: string }[]>('list_camera_recipes')
+  expect(recipes.data?.some((recipe) => recipe.id === 'hero-arc')).toBe(true)
+
+  const recipe = await rpc<{ stateToken: string }>('apply_camera_recipe', {
+    _expectedStateToken: replaced.data!.stateToken,
+    recipeId: 'hero-arc',
+    entityId: replaced.data!.entities.hero
+  })
+  expect(recipe.ok).toBe(true)
+
+  const review = await rpc<{ imageBase64: string; stateToken: string; times: number[] }>('review_shot', {
+    _expectedStateToken: recipe.data!.stateToken,
+    maxFrames: 5
+  })
+  expect(review.ok).toBe(true)
+  expect(review.data?.imageBase64.length).toBeGreaterThan(1000)
+  expect(review.data?.times.length).toBeGreaterThanOrEqual(2)
+
+  const exported = await rpc<{ packagePath: string; profileId: string }>('export_shot', {
+    _expectedStateToken: review.data!.stateToken,
+    profileId: 'seedance-2.5',
+    clean: true,
+    depth: false,
+    normal: false,
+    labels: 'off',
+    resolution: '720p'
+  })
+  expect(exported.ok).toBe(true)
+  expect(exported.data?.profileId).toBe('seedance-2.5')
+  expect(existsSync(join(exported.data!.packagePath, 'reference_roles.json'))).toBe(true)
+})
