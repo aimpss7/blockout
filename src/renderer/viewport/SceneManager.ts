@@ -1193,6 +1193,7 @@ export class SceneManager {
             m.pan = e.y
             m.tilt = e.x
             m.roll = e.z
+            if (shot) shot.director = { ...shot.director, heroFrameApproved: false }
           }
         }
       })
@@ -1394,7 +1395,10 @@ export class SceneManager {
       for (const scene of doc.scenes) {
         for (const shot of scene.shots) {
           const m = shot.camera.marks.find((x) => x.id === mark.id)
-          if (m) m.focalLength = focalLength
+          if (m) {
+            m.focalLength = focalLength
+            shot.director = { ...shot.director, heroFrameApproved: false }
+          }
         }
       }
     })
@@ -1462,6 +1466,7 @@ export class SceneManager {
               m.position = { x: px, y: py, z: pz }
               m.pan = pan
               m.tilt = tilt
+              shot.director = { ...shot.director, heroFrameApproved: false }
             }
           }
         }
@@ -1520,7 +1525,10 @@ export class SceneManager {
             for (const scene of doc.scenes)
               for (const shot of scene.shots) {
                 const m = shot.camera.marks.find((x) => x.id === fresh.id)
-                if (m) m.roll = roll
+                if (m) {
+                  m.roll = roll
+                  shot.director = { ...shot.director, heroFrameApproved: false }
+                }
               }
           })
         }
@@ -1535,6 +1543,7 @@ export class SceneManager {
               m.pan = pan
               m.tilt = tilt
               if (roll !== undefined) m.roll = roll
+              shot.director = { ...shot.director, heroFrameApproved: false }
             }
           }
       })
@@ -1753,6 +1762,11 @@ export class SceneManager {
           scene.shots.find((x) => x.id === shotId) ?? scene.drafts?.find((x) => x.id === shotId)
         if (!shot) continue
         shot.camera.marks = marks
+        shot.director = {
+          ...shot.director,
+          cameraRecipeId: undefined,
+          heroFrameApproved: false
+        }
         // Aim-lock moves stay glued to the subject even if marks are re-timed
         // or dragged; framed moves (whip pan, static pan) aim by their marks.
         if (preset.track) shot.camera.trackEntityId = subject.id
@@ -1908,6 +1922,7 @@ export class SceneManager {
           scene.shots.find((x) => x.id === shotId) ?? scene.drafts?.find((x) => x.id === shotId)
         if (shot) {
           shot.camera.marks = marks
+          shot.director = { ...shot.director, cameraRecipeId: undefined, heroFrameApproved: false }
           if (!this.recPlaybackSynced) shot.duration = Math.round(length * 10) / 10
         }
       }
