@@ -77,6 +77,14 @@ Headless/dialog-free driving: launch with env `BLOCKOUT_SMOKE_DIR=/some/dir` —
 
 ## Agent control (MCP)
 
+**Fork-specific director mode.** The MCP bridge now exposes a compact tool set by
+default: `get_state`, `list_assets`, `replace_scene`,
+`list_camera_recipes`, `apply_camera_recipe`, `review_shot`,
+`export_shot`, and `set_reference`. This is intentional: keep the agent on a
+high-level directing surface and minimize tool-schema/context cost. Set
+`BLOCKOUT_MCP_FULL_TOOLS=1` only when low-level Blockout operations are
+actually needed. See `docs/AGENT_DIRECTOR_ROADMAP.md`.
+
 Blockout ships an MCP server so you can drive a **running** app from Claude Code, Codex, Hermes, or any MCP client — stage entities, drop marks, reframe, scrub, and grab a viewport screenshot without touching the UI.
 
 **How it works.** On launch the main process starts a localhost-only HTTP control server (`src/main/control.ts`) on a random port with a bearer token, and writes a protocol-v1 discovery descriptor (`{ protocolVersion, app, appVersion, port, token, pid, startedAt, capabilities }`) under `~/.config/blockout` on macOS/Linux or `%APPDATA%\blockout` on Windows (mode 0600 where supported, deleted on quit). The MCP bridge `mcp/blockout-mcp.mjs` (zero-dependency Node ≥18 stdio server) reads both v1 and legacy descriptors and forwards each tool call to the control server, which relays it to the renderer over the `control:invoke` / `control:result` IPC pair. Discovery and auth are automatic — nothing to configure, and if the app isn't running the tools return "Blockout isn't running — launch the app first."
