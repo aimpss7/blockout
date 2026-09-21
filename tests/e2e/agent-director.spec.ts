@@ -4,7 +4,7 @@
  */
 
 import { _electron as electron, test, expect, type ElectronApplication, type Page } from '@playwright/test'
-import { existsSync, mkdtempSync, readFileSync } from 'fs'
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'fs'
 import { homedir, tmpdir } from 'os'
 import { join } from 'path'
 
@@ -13,6 +13,7 @@ let page: Page
 let port = 0
 let token = ''
 let smokeDir = ''
+let motionPath = ''
 
 async function rpc<T>(
   action: string,
@@ -29,6 +30,23 @@ async function rpc<T>(
 
 test.beforeAll(async () => {
   smokeDir = mkdtempSync(join(tmpdir(), 'blockout-agent-director-'))
+  motionPath = join(smokeDir, 'camera_motion.json')
+  writeFileSync(
+    motionPath,
+    JSON.stringify({
+      fps: 12,
+      duration: 1,
+      width: 1920,
+      height: 1080,
+      frames: [
+        { time: 0, cameraMove: { pan: 0, tilt: 0, dollyZoom: 1, roll: 0 }, confidence: 1 },
+        { time: 0.5, cameraMove: { pan: 0.12, tilt: -0.04, dollyZoom: 1.08, roll: 0.02 }, confidence: 0.9 },
+        { time: 1, cameraMove: { pan: 0.2, tilt: -0.08, dollyZoom: 1.15, roll: 0.04 }, confidence: 0.85 }
+      ],
+      summary: { averageConfidence: 0.92 }
+    }),
+    'utf8'
+  )
   app = await electron.launch({
     args: ['out/main/index.js'],
     env: { ...process.env, BLOCKOUT_SMOKE_DIR: smokeDir }
@@ -118,6 +136,19 @@ test('atomic shot plan → camera recipe → one-sheet review → Seedance expor
   const recipes = await rpc<{ id: string }[]>('list_camera_recipes')
   expect(recipes.data?.some((recipe) => recipe.id === 'hero-arc')).toBe(true)
 
+  const measured = await rpc<{ stateToken: string; markCount: number; source: string }>(
+    'import_motion_previs_camera',
+    {
+      _expectedStateToken: replaced.data!.stateToken,
+      cameraMotionPath: motionPath,
+      targetFps: 6,
+      durationMode: 'fit-shot'
+    }
+  )
+  expect(measured.ok).toBe(true)
+  expect(measured.data?.markCount).toBeGreaterThanOrEqual(3)
+  expect(measured.data?.source).toContain('refs/')
+
   const review = await rpc<{
     imageBase64: string
     stateToken: string
@@ -125,7 +156,7 @@ test('atomic shot plan → camera recipe → one-sheet review → Seedance expor
     heroFrameTime: number | null
     heroFrameApproved: boolean
   }>('review_shot', {
-    _expectedStateToken: replaced.data!.stateToken,
+    _expectedStateToken: measured.data!.stateToken,
     maxFrames: 5
   })
   expect(review.ok).toBe(true)
