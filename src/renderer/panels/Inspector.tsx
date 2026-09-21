@@ -14,6 +14,7 @@ import { GAITS } from '@engine/gaits'
 import { RIGS } from '@engine/rigs'
 import { MOTION_PRESETS, type MotionPreset } from '@engine/motions'
 import { CAMERA_MOVE_PRESETS } from '@engine/camera-moves'
+import { CAMERA_RECIPES } from '@engine/director'
 import { ACTION_PRESETS } from '@engine/action-presets'
 import { ShotEvaluator } from '@engine/evaluate'
 import { newId } from '@engine/ids'
@@ -1402,6 +1403,57 @@ function CameraPoseSection({ scene, shot }: { scene: Scene; shot: Shot }): JSX.E
   )
 }
 
+/* ---------------------- director camera recipes --------------------- */
+
+function DirectorCameraRecipesSection({ scene, shot }: { scene: Scene; shot: Shot }): JSX.Element {
+  const mutate = useMutate()
+  const [recipeId, setRecipeId] = useState(CAMERA_RECIPES[0]!.id)
+  const recipe = CAMERA_RECIPES.find((item) => item.id === recipeId) ?? CAMERA_RECIPES[0]!
+
+  const apply = (): void => {
+    getSceneManager()?.applyCameraMove(recipe.presetId)
+    mutate(`director recipe: ${recipe.name}`, (doc) => {
+      const sh = findShotOrDraft(doc, scene.id, shot.id)
+      if (!sh) return
+      if (recipe.defaultLens !== null && !sh.director?.locks?.lens) {
+        for (const mark of sh.camera.marks) mark.focalLength = recipe.defaultLens
+      }
+      sh.director = {
+        ...sh.director,
+        intent: recipe.intent,
+        cameraRecipeId: recipe.id,
+        heroFrameApproved: false
+      }
+    })
+  }
+
+  return (
+    <div className="panel-section">
+      <div className="panel-title">Director camera</div>
+      <div className="field">
+        <label>Choose by shot intention</label>
+        <select value={recipeId} onChange={(e) => setRecipeId(e.target.value)}>
+          {CAMERA_RECIPES.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.name} · {item.intent}
+            </option>
+          ))}
+        </select>
+      </div>
+      <p style={{ color: 'var(--text-faint)', fontSize: 11, lineHeight: 1.4, marginBottom: 4 }}>
+        {recipe.shotFunction}
+      </p>
+      <p style={{ color: 'var(--text-faint)', fontSize: 11, lineHeight: 1.4, marginBottom: 8 }}>
+        {recipe.description}
+        {recipe.defaultLens !== null ? ` Suggested lens: ${recipe.defaultLens}mm.` : ''}
+      </p>
+      <button className="btn primary" style={{ width: '100%' }} onClick={apply}>
+        Apply director recipe
+      </button>
+    </div>
+  )
+}
+
 /* ----------------------- camera move presets ------------------------ */
 
 /**
@@ -1423,7 +1475,7 @@ function CameraMovesSection({ scene }: { scene: Scene }): JSX.Element {
 
   return (
     <div className="panel-section">
-      <div className="panel-title">Camera moves</div>
+      <div className="panel-title">Advanced camera moves</div>
       <div className="field">
         <label>
           {CAMERA_MOVE_PRESETS.length} classic moves — built around{' '}
@@ -1691,6 +1743,8 @@ function CameraInspector({ scene, shot }: { scene: Scene; shot: Shot }): JSX.Ele
           </p>
         )}
       </div>
+
+      <DirectorCameraRecipesSection scene={scene} shot={shot} />
 
       <CameraMovesSection scene={scene} />
 
