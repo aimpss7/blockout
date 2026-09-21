@@ -82,9 +82,21 @@ No `env`, no headers, no URL — the bridge discovers the running app on its own
 
 ---
 
+## Director mode (default)
+
+This fork exposes a deliberately small **8-tool** catalog by default so an LLM
+does not spend context on dozens of low-level schemas. A normal shot is expected
+to use `get_state → replace_scene → apply_camera_recipe → review_shot → export_shot`.
+
+Set `BLOCKOUT_MCP_FULL_TOOLS=1` before launching the MCP bridge to expose the
+full **39-tool** Blockout catalog for advanced/manual operations.
+
+Mutating director tools use the `stateToken` returned by `get_state` (and
+`review_shot`) to reject stale writes after a human has changed the project.
+
 ## Tools
 
-33 tools. Coordinates are in **meters**: `+X` right, `−Z` forward/away from the default camera; **heading 0 faces −Z**; `rotationDeg` / `panDeg` are clockwise seen from above; `tiltDeg` is positive up. Focal lengths are mm on Super 35 (24 wide, 35 normal, 50–85 tight).
+39 tools in full mode; director mode exposes 8. Coordinates are in **meters**: `+X` right, `−Z` forward/away from the default camera; **heading 0 faces −Z**; `rotationDeg` / `panDeg` are clockwise seen from above; `tiltDeg` is positive up. Focal lengths are mm on Super 35 (24 wide, 35 normal, 50–85 tight).
 
 | Tool | Params | Does |
 |---|---|---|
