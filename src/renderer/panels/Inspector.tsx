@@ -587,7 +587,11 @@ function EntityInspector({
   const editEntity = (label: string, fn: (e: Entity) => void): void => {
     mutate(label, (doc) => {
       const en = findEntity(doc, scene.id, entityId)
-      if (en) fn(en)
+      if (en) {
+        fn(en)
+        const sh = findShotOrDraft(doc, scene.id, shot.id)
+        if (sh) sh.director = { ...sh.director, heroFrameApproved: false }
+      }
     })
   }
 
