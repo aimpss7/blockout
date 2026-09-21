@@ -140,6 +140,15 @@ function summary(detail: 'compact' | 'full' = 'compact'): unknown {
           fps: shot.fps,
           aspect: shot.aspect,
           camera: shot.cameraName ?? 'A',
+          director: shot.director
+            ? {
+                intent: shot.director.intent ?? null,
+                cameraRecipeId: shot.director.cameraRecipeId ?? null,
+                heroFrameTime: shot.director.heroFrameTime ?? null,
+                heroFrameApproved: shot.director.heroFrameApproved ?? false,
+                locks: shot.director.locks ?? {}
+              }
+            : null,
           trackEntityId: shot.camera.trackEntityId ?? null,
           cameraMarkCount: shot.camera.marks.length,
           cameraMarks:
@@ -231,6 +240,10 @@ async function execute(action: string, params: Params): Promise<unknown> {
       requireDoc()
       assertExpectedState(params)
       if (s.exportProgress.running) throw new Error('Cannot replace the scene while an export is running.')
+      const existingLocks = s.shot()?.director?.locks
+      if (existingLocks?.staging || (existingLocks?.blockingEntityIds?.length ?? 0) > 0) {
+        throw new Error('human lock: staging/blocking is protected. Clear the lock before replacing the scene.')
+      }
 
       const rawEntities = params.entities
       const rawShot = asParams(params.shot, 'shot')
@@ -360,6 +373,11 @@ async function execute(action: string, params: Params): Promise<unknown> {
         if (notes !== undefined) shot.notes = notes
         if (rigRaw) shot.camera.rig = rigRaw
         if (Array.isArray(rawCameraMarks)) shot.camera.marks = cameraMarks
+        shot.director = {
+          ...shot.director,
+          heroFrameApproved: false,
+          heroFrameTime: flt(rawShot, 'heroFrameTime') ?? shot.director?.heroFrameTime
+        }
 
         const trackEntityKey = str(rawShot, 'trackEntityKey')
         if (trackEntityKey) {
@@ -376,6 +394,64 @@ async function execute(action: string, params: Params): Promise<unknown> {
       s.setTime(0)
       s.setSelection(null)
       return { replaced: true, entities: entityIdsByKey, stateToken: currentStateToken() }
+    }
+
+    case 'compile_shot': {
+      requireDoc()
+      // compile_shot is deliberately orchestration, not a second geometry engine:
+      // one atomic blueprint, then the existing deterministic camera recipe.
+      const replaced = (await execute('replace_scene', params)) as {
+        replaced: boolean
+        entities: Record<string, string>
+        stateToken: string
+      }
+      let stateToken = replaced.stateToken
+      const recipeId = str(params, 'cameraRecipeId')
+      let appliedRecipe: string | null = null
+      if (recipeId) {
+        const subjectKey = str(params, 'cameraSubjectKey')
+        const entityId = subjectKey ? replaced.entities[subjectKey] : undefined
+        if (subjectKey && !entityId) {
+          throw new Error(`Unknown cameraSubjectKey "${subjectKey}".`)
+        }
+        const applied = (await execute('apply_camera_recipe', {
+          _expectedStateToken: stateToken,
+          recipeId,
+          entityId
+        })) as { applied: string; stateToken: string }
+        appliedRecipe = applied.applied
+        stateToken = applied.stateToken
+      }
+
+      const intent = str(params, 'intent')
+      const heroFrameTime = flt(params, 'heroFrameTime')
+      if (intent !== undefined || heroFrameTime !== undefined) {
+        assertExpectedState({ _expectedStateToken: stateToken })
+        s.mutate('agent: director shot metadata', (doc) => {
+          const scene = doc.scenes.find((sc) => sc.id === useStore.getState().sceneId)
+          const shot = scene?.shots.find((sh) => sh.id === useStore.getState().shotId)
+          if (!shot) return
+          shot.director = {
+            ...shot.director,
+            intent: intent ?? shot.director?.intent,
+            cameraRecipeId: appliedRecipe ?? shot.director?.cameraRecipeId,
+            heroFrameTime:
+              heroFrameTime === undefined
+                ? shot.director?.heroFrameTime
+                : Math.min(shot.duration, Math.max(0, heroFrameTime)),
+            heroFrameApproved: false
+          }
+        })
+        stateToken = currentStateToken()
+      }
+
+      return {
+        compiled: true,
+        entities: replaced.entities,
+        cameraRecipeId: appliedRecipe,
+        heroFrameTime: useStore.getState().shot()?.director?.heroFrameTime ?? null,
+        stateToken
+      }
     }
 
     case 'add_entity': {
@@ -512,6 +588,9 @@ async function execute(action: string, params: Params): Promise<unknown> {
         if (aspect && ['16:9', '9:16', '2.39:1', '4:3', '1:1'].includes(aspect)) {
           shot.aspect = aspect
         }
+        if (name || duration !== undefined || fps !== undefined || aspect) {
+          shot.director = { ...shot.director, heroFrameApproved: false }
+        }
       })
       return { ok: true }
     }
@@ -583,6 +662,10 @@ async function execute(action: string, params: Params): Promise<unknown> {
       const recipeId = str(params, 'recipeId') ?? ''
       const recipe = getCameraRecipe(recipeId)
       if (!recipe) throw new Error(`Unknown recipeId "${recipeId}" — call list_camera_recipes.`)
+      const locks = s.shot()?.director?.locks
+      if (locks?.camera || locks?.framing) {
+        throw new Error('human lock: camera/framing is protected. Clear the lock before applying a camera recipe.')
+      }
       const subjectId = str(params, 'entityId')
       if (subjectId) {
         if (!s.scene()?.entities.some((entity) => entity.id === subjectId)) {
@@ -592,18 +675,79 @@ async function execute(action: string, params: Params): Promise<unknown> {
       }
       s.setTime(0)
       requireManager().applyCameraMove(recipe.presetId)
-      if (recipe.defaultLens !== null) {
-        s.mutate('agent: camera recipe lens', (doc) => {
-          const scene = doc.scenes.find((sc) => sc.id === useStore.getState().sceneId)
-          const shot = scene?.shots.find((sh) => sh.id === useStore.getState().shotId)
-          if (!shot) return
-          for (const mark of shot.camera.marks) mark.focalLength = recipe.defaultLens!
-        })
-      }
+      s.mutate('agent: camera recipe metadata', (doc) => {
+        const scene = doc.scenes.find((sc) => sc.id === useStore.getState().sceneId)
+        const shot = scene?.shots.find((sh) => sh.id === useStore.getState().shotId)
+        if (!shot) return
+        if (recipe.defaultLens !== null && !locks?.lens) {
+          for (const mark of shot.camera.marks) mark.focalLength = recipe.defaultLens
+        }
+        shot.director = {
+          ...shot.director,
+          intent: recipe.intent,
+          cameraRecipeId: recipe.id,
+          heroFrameApproved: false
+        }
+      })
       return {
         applied: recipe.id,
         presetId: recipe.presetId,
         defaultLens: recipe.defaultLens,
+        stateToken: currentStateToken()
+      }
+    }
+
+    case 'set_human_locks': {
+      requireDoc()
+      assertExpectedState(params)
+      s.mutate('agent: set human locks', (doc) => {
+        const scene = doc.scenes.find((sc) => sc.id === useStore.getState().sceneId)
+        const shot = scene?.shots.find((sh) => sh.id === useStore.getState().shotId)
+        if (!shot) return
+        const current = shot.director?.locks ?? {}
+        const next = { ...current }
+        for (const key of ['camera', 'lens', 'framing', 'staging'] as const) {
+          const value = bool(params, key)
+          if (value !== undefined) next[key] = value
+        }
+        if (Array.isArray(params.blockingEntityIds)) {
+          next.blockingEntityIds = strList(params, 'blockingEntityIds')
+        }
+        shot.director = { ...shot.director, locks: next }
+      })
+      return { locks: useStore.getState().shot()?.director?.locks ?? {}, stateToken: currentStateToken() }
+    }
+
+    case 'approve_hero_frame': {
+      requireDoc()
+      assertExpectedState(params)
+      const shot = s.shot()
+      if (!shot) throw new Error('No active shot.')
+      const time = Math.min(shot.duration, Math.max(0, flt(params, 'time') ?? s.time))
+      const lockCamera = bool(params, 'lockCamera') ?? true
+      const lockLens = bool(params, 'lockLens') ?? true
+      const lockFraming = bool(params, 'lockFraming') ?? true
+      s.mutate('agent: approve hero frame', (doc) => {
+        const scene = doc.scenes.find((sc) => sc.id === useStore.getState().sceneId)
+        const target = scene?.shots.find((sh) => sh.id === useStore.getState().shotId)
+        if (!target) return
+        target.director = {
+          ...target.director,
+          heroFrameTime: time,
+          heroFrameApproved: true,
+          locks: {
+            ...target.director?.locks,
+            camera: lockCamera || target.director?.locks?.camera,
+            lens: lockLens || target.director?.locks?.lens,
+            framing: lockFraming || target.director?.locks?.framing
+          }
+        }
+      })
+      s.setTime(time)
+      return {
+        heroFrameTime: time,
+        approved: true,
+        locks: useStore.getState().shot()?.director?.locks ?? {},
         stateToken: currentStateToken()
       }
     }
@@ -853,14 +997,22 @@ async function execute(action: string, params: Params): Promise<unknown> {
       const shot = s.shot()
       if (!shot) throw new Error('No active shot.')
       const maxFrames = Math.min(9, Math.max(2, Math.round(flt(params, 'maxFrames') ?? 6)))
+      const heroTime = shot.director?.heroFrameTime
       const times = reviewTimes(
         shot.duration,
         shot.fps,
         shot.camera.marks.map((mark) => mark.time),
-        maxFrames
+        maxFrames,
+        heroTime === undefined ? [] : [heroTime]
       )
       const png = await renderReviewSheetPng(times)
-      return { imageBase64: bufferToBase64(png), stateToken: currentStateToken(), times }
+      return {
+        imageBase64: bufferToBase64(png),
+        stateToken: currentStateToken(),
+        times,
+        heroFrameTime: heroTime ?? null,
+        heroFrameApproved: shot.director?.heroFrameApproved ?? false
+      }
     }
 
     case 'export_shot': {
@@ -869,6 +1021,13 @@ async function execute(action: string, params: Params): Promise<unknown> {
       const profileId = str(params, 'profileId') ?? s.doc?.settings.defaultProfileId ?? 'seedance-2.5'
       if (!BUILTIN_PROFILES.some((profile) => profile.id === profileId)) {
         throw new Error(`Unknown profileId "${profileId}".`)
+      }
+      const requireApprovedHeroFrame =
+        bool(params, 'requireApprovedHeroFrame') ?? profileId === 'seedance-2.5'
+      if (requireApprovedHeroFrame && !s.shot()?.director?.heroFrameApproved) {
+        throw new Error(
+          'hero frame is not approved. Review the shot, call approve_hero_frame, then export.'
+        )
       }
       const resolutionRaw = str(params, 'resolution')
       const resolution: ExportResolution =
