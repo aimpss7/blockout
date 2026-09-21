@@ -171,38 +171,54 @@ export function reviewTimes(
   duration: number,
   fps: number,
   cameraMarkTimes: number[],
-  maxFrames = 6
+  maxFrames = 6,
+  priorityTimes: number[] = []
 ): number[] {
   const safeDuration = Math.max(0.001, duration)
   const safeFps = Math.max(1, fps)
   const end = Math.max(0, safeDuration - 1 / safeFps)
-  const candidates = [
+  const clampTime = (t: number): number => Math.min(end, Math.max(0, t))
+  const dedupe = (values: number[]): number[] => {
+    const sorted = values.map(clampTime).sort((a, b) => a - b)
+    const out: number[] = []
+    for (const t of sorted) {
+      if (out.length === 0 || Math.abs(t - out[out.length - 1]!) > 1e-4) out.push(t)
+    }
+    return out
+  }
+
+  const all = dedupe([
     0,
     end,
+    ...priorityTimes,
     ...cameraMarkTimes,
     safeDuration * 0.25,
     safeDuration * 0.5,
     safeDuration * 0.75
-  ]
-    .map((t) => Math.min(end, Math.max(0, t)))
-    .sort((a, b) => a - b)
-
-  const unique: number[] = []
-  for (const t of candidates) {
-    if (unique.length === 0 || Math.abs(t - unique[unique.length - 1]!) > 1e-4) unique.push(t)
-  }
+  ])
 
   const cap = Math.max(2, Math.floor(maxFrames))
-  if (unique.length <= cap) return unique
+  if (all.length <= cap) return all
 
-  const out = [unique[0]!]
-  const innerSlots = cap - 2
-  for (let i = 1; i <= innerSlots; i++) {
-    const idx = Math.round((i * (unique.length - 1)) / (innerSlots + 1))
-    const value = unique[idx]!
-    if (Math.abs(value - out[out.length - 1]!) > 1e-4) out.push(value)
+  // First/last are always useful; explicitly-approved hero frames must survive
+  // capping even when a shot contains many camera marks.
+  const mandatory = dedupe([0, end, ...priorityTimes])
+  if (mandatory.length >= cap) {
+    if (cap === 2) return dedupe([0, end])
+    const interior = mandatory.filter((t) => t > 1e-4 && t < end - 1e-4)
+    return dedupe([0, ...interior.slice(0, cap - 2), end]).slice(0, cap)
   }
-  const last = unique[unique.length - 1]!
-  if (Math.abs(last - out[out.length - 1]!) > 1e-4) out.push(last)
-  return out.slice(0, cap)
+
+  const selected = new Set(mandatory.map((t) => t.toFixed(6)))
+  const remaining = all.filter((t) => !selected.has(t.toFixed(6)))
+  const slots = cap - mandatory.length
+  const sampled: number[] = []
+  for (let i = 1; i <= slots; i++) {
+    const idx = Math.max(
+      0,
+      Math.min(remaining.length - 1, Math.round((i * (remaining.length - 1)) / (slots + 1)))
+    )
+    if (remaining[idx] !== undefined) sampled.push(remaining[idx]!)
+  }
+  return dedupe([...mandatory, ...sampled]).slice(0, cap)
 }
