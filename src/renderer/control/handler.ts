@@ -8,7 +8,7 @@
  */
 
 import { useStore } from '../store'
-import { ASSET_CATALOG, assetSpec } from '@engine/assets'
+import { ASSET_CATALOG, assetSpec, entityHeight } from '@engine/assets'
 import { createActorMark, createCameraMark, createEntity } from '@engine/schema'
 import { newId } from '@engine/ids'
 import { exportShot, renderReviewSheetPng, renderStillPngForTest, type ExportResolution } from '../export/exporter'
@@ -17,6 +17,7 @@ import type { AspectId, GaitId, LightingPresetId, RigId } from '@engine/types'
 import type { ChoreoKind, FormationId, RoutineSpec } from '@engine/choreography'
 import type { FramingKind } from '../bus'
 import { CAMERA_RECIPES, directorStateToken, getCameraRecipe, reviewTimes } from '@engine/director'
+import { CAMERA_MOVE_PRESETS } from '@engine/camera-moves'
 import { BUILTIN_PROFILES } from '@engine/profiles'
 import { ShotEvaluator } from '@engine/evaluate'
 import { motionPrevisToCameraSpecs, validateMotionPrevisCameraData } from '@engine/motion-previs'
@@ -687,33 +688,89 @@ async function execute(action: string, params: Params): Promise<unknown> {
       if (locks?.camera || locks?.framing) {
         throw new Error('human lock: camera/framing is protected. Clear the lock before applying a camera recipe.')
       }
-      const subjectId = str(params, 'entityId')
-      if (subjectId) {
-        if (!s.scene()?.entities.some((entity) => entity.id === subjectId)) {
-          throw new Error(`No entity "${subjectId}".`)
-        }
-        s.setSelection({ kind: 'entity', entityId: subjectId })
-      }
-      s.setTime(0)
-      requireManager().applyCameraMove(recipe.presetId)
-      s.mutate('agent: camera recipe metadata', (doc) => {
-        const scene = doc.scenes.find((sc) => sc.id === useStore.getState().sceneId)
-        const shot = scene?.shots.find((sh) => sh.id === useStore.getState().shotId)
-        if (!shot) return
-        if (recipe.defaultLens !== null && !locks?.lens) {
-          for (const mark of shot.camera.marks) mark.focalLength = recipe.defaultLens
-        }
-        shot.director = {
-          ...shot.director,
+
+      const scene = s.scene()
+      const shot = s.shot()
+      if (!scene || !shot) throw new Error('No active scene/shot.')
+      const subjectId =
+        str(params, 'entityId') ??
+        scene.entities.find((entity) => entity.assetId.startsWith('person.'))?.id ??
+        scene.entities[0]?.id
+      if (!subjectId) throw new Error('Place a subject first — camera recipes are built around one.')
+      const entity = scene.entities.find((item) => item.id === subjectId)
+      if (!entity) throw new Error(`No entity "${subjectId}".`)
+
+      // Director recipes use the pure deterministic camera-move engine directly.
+      // This avoids a renderer-frame race when compile_shot applies a recipe
+      // immediately after replacing the scene in the same MCP call.
+      const preset = CAMERA_MOVE_PRESETS.find((item) => item.id === recipe.presetId)
+      if (!preset) throw new Error(`Camera recipe "${recipe.id}" references missing preset "${recipe.presetId}".`)
+      const evaluator = new ShotEvaluator(scene, shot)
+      const camera0 = evaluator.evaluate(0).camera
+      const height = entityHeight(entity.assetId, entity.transform.scale, entity.params)
+      const specs = preset.generate({
+        subjectAt: (time) => {
+          const state = evaluator.evaluate(Math.min(Math.max(time, 0), shot.duration))
+          const subject = state.entities.find((item) => item.entityId === subjectId)
+          return subject
+            ? {
+                x: subject.position.x,
+                y: subject.position.y,
+                z: subject.position.z,
+                heading: subject.heading
+              }
+            : {
+                x: entity.transform.position.x,
+                y: entity.transform.position.y,
+                z: entity.transform.position.z,
+                heading: entity.transform.rotationY
+              }
+        },
+        subjectHeight: height,
+        camera: {
+          x: camera0.position.x,
+          y: camera0.position.y,
+          z: camera0.position.z,
+          pan: camera0.pan,
+          tilt: camera0.tilt,
+          focalLength: camera0.focalLength
+        },
+        duration: shot.duration
+      })
+      const marks = specs.map((spec) => ({
+        id: newId('cmark'),
+        time: spec.time,
+        hold: spec.hold,
+        easeIn: spec.easeIn,
+        easeOut: spec.easeOut,
+        position: { ...spec.position },
+        pan: spec.pan,
+        tilt: spec.tilt,
+        roll: spec.roll,
+        focalLength:
+          recipe.defaultLens !== null && !locks?.lens ? recipe.defaultLens : spec.focalLength
+      }))
+
+      s.mutate('agent: camera recipe', (doc) => {
+        const sc = doc.scenes.find((item) => item.id === useStore.getState().sceneId)
+        const sh = sc?.shots.find((item) => item.id === useStore.getState().shotId)
+        if (!sh) return
+        sh.camera.marks = marks
+        if (preset.track) sh.camera.trackEntityId = subjectId
+        else delete sh.camera.trackEntityId
+        sh.director = {
+          ...sh.director,
           intent: recipe.intent,
           cameraRecipeId: recipe.id,
           heroFrameApproved: false
         }
       })
+      s.setTime(0)
       return {
         applied: recipe.id,
         presetId: recipe.presetId,
         defaultLens: recipe.defaultLens,
+        markCount: marks.length,
         stateToken: currentStateToken()
       }
     }
