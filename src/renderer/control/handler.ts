@@ -234,7 +234,17 @@ async function execute(action: string, params: Params): Promise<unknown> {
       return ASSET_CATALOG.filter((a) => !cat || a.category === cat).map((a) => ({
         id: a.id,
         name: a.name,
-        category: a.category
+        category: a.category,
+        params:
+          a.id === 'prim.cube' || a.id === 'prim.ramp' || a.id === 'prim.wall'
+            ? ['width', 'height', 'depth']
+            : a.id === 'prim.cylinder'
+              ? ['radius', 'height']
+              : a.id === 'prim.stairs'
+                ? ['width', 'height', 'depth', 'steps']
+                : a.id.startsWith('person.')
+                  ? ['height', 'build']
+                  : undefined
       }))
     }
 
@@ -286,6 +296,15 @@ async function execute(action: string, params: Params): Promise<unknown> {
           { x: flt(raw, 'x') ?? 0, y: flt(raw, 'y') ?? 0, z: flt(raw, 'z') ?? 0 }
         )
         entity.transform.rotationY = toRad(flt(raw, 'rotationDeg') ?? 0)
+        entity.transform.scale = Math.min(20, Math.max(0.05, flt(raw, 'scale') ?? 1))
+        if (raw.params && typeof raw.params === 'object' && !Array.isArray(raw.params)) {
+          entity.params = Object.fromEntries(
+            Object.entries(raw.params as Record<string, unknown>).filter(
+              (entry): entry is [string, number | string] =>
+                (typeof entry[1] === 'number' && isFinite(entry[1])) || typeof entry[1] === 'string'
+            )
+          )
+        }
         const label = str(raw, 'label')
         if (label) entity.label = { text: label, color: '#3b82f6' }
 
