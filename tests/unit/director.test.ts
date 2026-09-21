@@ -31,6 +31,13 @@ describe('agent director helpers', () => {
     expect(profile.refModes).toEqual(['referenceVideo', 'stills'])
   })
 
+  it('keeps an approved hero-frame time in a capped review sheet', () => {
+    const times = reviewTimes(10, 24, [1, 2, 3, 4, 5, 6, 7, 8, 9], 5, [6.4])
+    expect(times).toContain(6.4)
+    expect(times[0]).toBe(0)
+    expect(times[times.length - 1]).toBeCloseTo(10 - 1 / 24)
+  })
+
   it('keeps director recipes mapped to real deterministic camera presets', () => {
     const presetIds = new Set(CAMERA_MOVE_PRESETS.map((p) => p.id))
     const recipeIds = new Set<string>()
