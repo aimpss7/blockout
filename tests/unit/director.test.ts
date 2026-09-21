@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { CAMERA_MOVE_PRESETS } from '../../src/engine/camera-moves'
 import { CAMERA_RECIPES, directorStateToken, reviewTimes } from '../../src/engine/director'
 import { createProject } from '../../src/engine/schema'
+import { getProfile } from '../../src/engine/profiles'
 
 describe('agent director helpers', () => {
   it('changes the stale-state token when the document changes', () => {
@@ -20,6 +21,14 @@ describe('agent director helpers', () => {
     expect(times[0]).toBe(0)
     expect(times[times.length - 1]).toBeCloseTo(8 - 1 / 24)
     expect([...times].sort((a, b) => a - b)).toEqual(times)
+  })
+
+  it('defaults new projects to the official Seedance 2.5 reference workflow', () => {
+    const doc = createProject('Seedance test')
+    const profile = getProfile('seedance-2.5')
+    expect(doc.settings.defaultProfileId).toBe('seedance-2.5')
+    expect(profile.maxDuration).toBe(30)
+    expect(profile.refModes).toEqual(['referenceVideo', 'stills'])
   })
 
   it('keeps director recipes mapped to real deterministic camera presets', () => {
