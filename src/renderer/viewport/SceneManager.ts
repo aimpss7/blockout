@@ -1215,6 +1215,7 @@ export class SceneManager {
     this.dragStart = null
     this.dragAnchorId = null
 
+    const editedShotId = this.shot?.id
     s.mutate(ids.length > 1 ? 'move group' : 'move entity', (doc) => {
       for (const scene of doc.scenes) {
         for (const id of ids) {
@@ -1272,6 +1273,12 @@ export class SceneManager {
               }
             }
           }
+        }
+        const editedShot =
+          scene.shots.find((shot) => shot.id === editedShotId) ??
+          scene.drafts?.find((shot) => shot.id === editedShotId)
+        if (editedShot) {
+          editedShot.director = { ...editedShot.director, heroFrameApproved: false }
         }
       }
     })
