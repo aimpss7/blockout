@@ -53,6 +53,8 @@ Implemented in the first branch:
 - `export_shot`: deterministic reference-package export through MCP;
 - Seedance 2.5 generator profile based on ByteDance's official 2026-07-31
   release information.
+- parametric proxy geometry for agent-built boxes, cylinders, ramps, walls,
+  and stairs without invoking Blender.
 
 Token target: a normal shot should need roughly:
 
@@ -78,11 +80,16 @@ Implemented in the current branch:
 - review sheets preserve the hero-frame time even when frame count is capped;
 - Seedance 2.5 MCP exports require an approved hero frame by default.
 
+Also implemented:
+
+- camera-keyframe selection jumps the playhead exactly to that mark;
+- explicit “Edit camera pose at this mark” handoff into the Camera panel;
+- desktop Hero Frame First approval + camera/lens/framing/staging lock controls.
+
 Still to do:
 
-- camera-keyframe editing UX aligned with the review workflow;
-- automatic lock controls in the desktop UI;
-- richer warning-frame selection in review sheets.
+- richer warning-frame selection in review sheets;
+- per-actor blocking lock controls in the desktop UI.
 
 ## Phase 3 — operator layer
 
