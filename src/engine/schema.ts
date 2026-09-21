@@ -27,7 +27,7 @@ export function createProject(name: string): ProjectDoc {
     version: SCHEMA_VERSION,
     id: newId('proj'),
     name,
-    settings: { defaultProfileId: 'seedance-2' },
+    settings: { defaultProfileId: 'seedance-2.5' },
     scenes: []
   }
   doc.scenes.push(createScene(1))
