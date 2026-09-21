@@ -9,13 +9,15 @@
 
 import { useStore } from '../store'
 import { ASSET_CATALOG, assetSpec } from '@engine/assets'
-import { createActorMark, createCameraMark } from '@engine/schema'
+import { createActorMark, createCameraMark, createEntity } from '@engine/schema'
 import { newId } from '@engine/ids'
-import { renderStillPngForTest } from '../export/exporter'
+import { exportShot, renderReviewSheetPng, renderStillPngForTest, type ExportResolution } from '../export/exporter'
 import { getSceneManager } from '../export/scene-access'
-import type { AspectId, GaitId } from '@engine/types'
+import type { AspectId, GaitId, LightingPresetId, RigId } from '@engine/types'
 import type { ChoreoKind, FormationId, RoutineSpec } from '@engine/choreography'
 import type { FramingKind } from '../bus'
+import { CAMERA_RECIPES, directorStateToken, getCameraRecipe, reviewTimes } from '@engine/director'
+import { BUILTIN_PROFILES } from '@engine/profiles'
 
 type Params = Record<string, unknown>
 type ControlResult = { ok: boolean; data?: unknown; error?: string }
@@ -44,13 +46,61 @@ function requireDoc(): void {
   }
 }
 
-function summary(): unknown {
+function currentStateToken(): string {
+  const state = useStore.getState()
+  return directorStateToken(state.doc, state.sceneId, state.shotId)
+}
+
+function assertExpectedState(params: Params, required = true): void {
+  const expected = str(params, '_expectedStateToken')
+  if (!expected) {
+    if (required) {
+      throw new Error('_expectedStateToken is required — call get_state, review the current shot, then retry.')
+    }
+    return
+  }
+  const current = currentStateToken()
+  if (expected !== current) {
+    throw new Error(`stale state: expected ${expected}, current ${current}. Call get_state and review before mutating.`)
+  }
+}
+
+function asParams(value: unknown, label: string): Params {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${label} must be an object.`)
+  }
+  return value as Params
+}
+
+function bufferToBase64(buffer: ArrayBuffer): string {
+  let binary = ''
+  const bytes = new Uint8Array(buffer)
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!)
+  return btoa(binary)
+}
+
+const LIGHTING_PRESETS: LightingPresetId[] = [
+  'day',
+  'goldenHour',
+  'night',
+  'interiorWarm',
+  'interiorCool',
+  'club',
+  'middaySky',
+  'goldenHourSky',
+  'blueHourSky'
+]
+const CAMERA_RIGS: RigId[] = ['sticks', 'dolly', 'steadicam', 'handheld', 'crane', 'drone', 'carMount']
+
+function summary(detail: 'compact' | 'full' = 'compact'): unknown {
   const s = useStore.getState()
   const scene = s.scene()
   const shot = s.shot()
   const take = scene?.blocking.find((b) => b.id === shot?.blockingTakeId)
   return {
     project: s.doc?.name ?? null,
+    projectFolder: s.projectFolder,
+    stateToken: currentStateToken(),
     mode: s.mode,
     time: s.time,
     scene: scene
@@ -90,16 +140,35 @@ function summary(): unknown {
           fps: shot.fps,
           aspect: shot.aspect,
           camera: shot.cameraName ?? 'A',
-          cameraMarks: shot.camera.marks.map((m, i) => ({
-            index: i + 1,
-            time: m.time,
-            x: m.position.x,
-            y: m.position.y,
-            z: m.position.z,
-            panDeg: toDeg(m.pan),
-            tiltDeg: toDeg(m.tilt),
-            focalLength: m.focalLength
-          }))
+          trackEntityId: shot.camera.trackEntityId ?? null,
+          cameraMarkCount: shot.camera.marks.length,
+          cameraMarks:
+            detail === 'full'
+              ? shot.camera.marks.map((m, i) => ({
+                  index: i + 1,
+                  time: m.time,
+                  x: m.position.x,
+                  y: m.position.y,
+                  z: m.position.z,
+                  panDeg: toDeg(m.pan),
+                  tiltDeg: toDeg(m.tilt),
+                  rollDeg: toDeg(m.roll),
+                  focalLength: m.focalLength
+                }))
+              : undefined,
+          actorTracks:
+            detail === 'full'
+              ? (take?.tracks ?? []).map((track) => ({
+                  entityId: track.entityId,
+                  marks: track.marks.map((m) => ({
+                    time: m.time,
+                    x: m.position.x,
+                    y: m.position.y,
+                    z: m.position.z,
+                    gait: m.gait
+                  }))
+                }))
+              : undefined
         }
       : null,
     allShots: scene?.shots.map((sh) => ({ id: sh.id, name: sh.name })) ?? [],
@@ -144,9 +213,10 @@ function routineSpecFromParams(params: Params): RoutineSpec {
 async function execute(action: string, params: Params): Promise<unknown> {
   const s = useStore.getState()
   switch (action) {
-    case 'get_state':
-      requireDoc()
-      return summary()
+    case 'get_state': {
+      const detail = str(params, 'detail') === 'full' ? 'full' : 'compact'
+      return summary(detail)
+    }
 
     case 'list_assets': {
       const cat = str(params, 'category')
@@ -155,6 +225,157 @@ async function execute(action: string, params: Params): Promise<unknown> {
         name: a.name,
         category: a.category
       }))
+    }
+
+    case 'replace_scene': {
+      requireDoc()
+      assertExpectedState(params)
+      if (s.exportProgress.running) throw new Error('Cannot replace the scene while an export is running.')
+
+      const rawEntities = params.entities
+      const rawShot = asParams(params.shot, 'shot')
+      if (!Array.isArray(rawEntities) || rawEntities.length < 1 || rawEntities.length > 32) {
+        throw new Error('entities must contain 1–32 scene entities.')
+      }
+
+      const duration = Math.min(600, Math.max(0.5, flt(rawShot, 'duration') ?? s.shot()?.duration ?? 5))
+      const fpsRaw = flt(rawShot, 'fps') ?? s.shot()?.fps ?? 24
+      const fps = fpsRaw === 25 || fpsRaw === 30 ? fpsRaw : 24
+      const aspectRaw = str(rawShot, 'aspect') as AspectId | undefined
+      const aspect: AspectId =
+        aspectRaw && ['16:9', '9:16', '2.39:1', '4:3', '1:1'].includes(aspectRaw)
+          ? aspectRaw
+          : s.shot()?.aspect ?? '16:9'
+      const rigRaw = str(rawShot, 'rig') as RigId | undefined
+      if (rigRaw && !CAMERA_RIGS.includes(rigRaw)) throw new Error(`Unknown camera rig "${rigRaw}".`)
+      const lightingRaw = str(params, 'lighting') as LightingPresetId | undefined
+      if (lightingRaw && !LIGHTING_PRESETS.includes(lightingRaw)) {
+        throw new Error(`Unknown lighting preset "${lightingRaw}".`)
+      }
+
+      const keys = new Set<string>()
+      const built = rawEntities.map((value, index) => {
+        const raw = asParams(value, `entities[${index}]`)
+        const key = str(raw, 'key') ?? `entity-${index + 1}`
+        if (keys.has(key)) throw new Error(`Duplicate entity key "${key}".`)
+        keys.add(key)
+
+        const assetId = str(raw, 'assetId') ?? ''
+        const spec = assetSpec(assetId)
+        if (!spec || !ASSET_CATALOG.some((asset) => asset.id === assetId)) {
+          throw new Error(`Unknown assetId "${assetId}" for entity "${key}".`)
+        }
+        const entity = createEntity(
+          assetId,
+          str(raw, 'name') ?? spec.name,
+          { x: flt(raw, 'x') ?? 0, y: flt(raw, 'y') ?? 0, z: flt(raw, 'z') ?? 0 }
+        )
+        entity.transform.rotationY = toRad(flt(raw, 'rotationDeg') ?? 0)
+        const label = str(raw, 'label')
+        if (label) entity.label = { text: label, color: '#3b82f6' }
+
+        const rawMarks = raw.marks
+        if (rawMarks !== undefined && !Array.isArray(rawMarks)) {
+          throw new Error(`entities[${index}].marks must be an array.`)
+        }
+        const marks = (Array.isArray(rawMarks) ? rawMarks : []).map((markValue, markIndex) => {
+          const markRaw = asParams(markValue, `entities[${index}].marks[${markIndex}]`)
+          const gait = (str(markRaw, 'gait') ?? 'walk') as GaitId
+          const allowedGaits: GaitId[] = ['stand', 'walk', 'jog', 'run', 'sit', 'lie', 'crouch', 'gesture', 'fall']
+          if (!allowedGaits.includes(gait)) throw new Error(`Unknown gait "${gait}".`)
+          const mark = createActorMark(
+            {
+              x: flt(markRaw, 'x') ?? entity.transform.position.x,
+              y: flt(markRaw, 'y') ?? entity.transform.position.y,
+              z: flt(markRaw, 'z') ?? entity.transform.position.z
+            },
+            Math.min(duration, Math.max(0, flt(markRaw, 'time') ?? 0)),
+            gait
+          )
+          const hold = flt(markRaw, 'hold')
+          const easeIn = flt(markRaw, 'easeIn')
+          const easeOut = flt(markRaw, 'easeOut')
+          const headingDeg = flt(markRaw, 'headingDeg')
+          if (hold !== undefined) mark.hold = Math.max(0, hold)
+          if (easeIn !== undefined) mark.easeIn = Math.min(1, Math.max(0, easeIn))
+          if (easeOut !== undefined) mark.easeOut = Math.min(1, Math.max(0, easeOut))
+          if (headingDeg !== undefined) mark.arriveHeading = toRad(headingDeg)
+          if (markRaw.joints && typeof markRaw.joints === 'object' && !Array.isArray(markRaw.joints)) {
+            mark.joints = Object.fromEntries(
+              Object.entries(markRaw.joints as Record<string, unknown>).filter(
+                (entry): entry is [string, number] => typeof entry[1] === 'number' && isFinite(entry[1])
+              )
+            )
+          }
+          return mark
+        })
+        return { key, entity, marks }
+      })
+
+      const rawCameraMarks = rawShot.cameraMarks
+      if (rawCameraMarks !== undefined && !Array.isArray(rawCameraMarks)) {
+        throw new Error('shot.cameraMarks must be an array when provided.')
+      }
+      const cameraMarks = (Array.isArray(rawCameraMarks) ? rawCameraMarks : []).map((value, index) => {
+        const raw = asParams(value, `shot.cameraMarks[${index}]`)
+        const mark = createCameraMark(
+          { x: flt(raw, 'x') ?? 0, y: flt(raw, 'y') ?? 1.6, z: flt(raw, 'z') ?? 4 },
+          Math.min(duration, Math.max(0, flt(raw, 'time') ?? 0)),
+          toRad(flt(raw, 'panDeg') ?? 0),
+          toRad(flt(raw, 'tiltDeg') ?? 0),
+          flt(raw, 'focalLength') ?? 35
+        )
+        const rollDeg = flt(raw, 'rollDeg')
+        const hold = flt(raw, 'hold')
+        const easeIn = flt(raw, 'easeIn')
+        const easeOut = flt(raw, 'easeOut')
+        const focusDistance = flt(raw, 'focusDistance')
+        if (rollDeg !== undefined) mark.roll = toRad(rollDeg)
+        if (hold !== undefined) mark.hold = Math.max(0, hold)
+        if (easeIn !== undefined) mark.easeIn = Math.min(1, Math.max(0, easeIn))
+        if (easeOut !== undefined) mark.easeOut = Math.min(1, Math.max(0, easeOut))
+        if (focusDistance !== undefined) mark.focusDistance = Math.max(0.01, focusDistance)
+        return mark
+      })
+
+      const entityIdsByKey = Object.fromEntries(built.map((item) => [item.key, item.entity.id]))
+      let replaced = false
+      s.mutate('agent: replace scene blueprint', (doc) => {
+        const scene = doc.scenes.find((sc) => sc.id === useStore.getState().sceneId)
+        const shot = scene?.shots.find((sh) => sh.id === useStore.getState().shotId)
+        const take = scene?.blocking.find((b) => b.id === shot?.blockingTakeId)
+        if (!scene || !shot || !take) return
+
+        scene.entities = built.map((item) => item.entity)
+        take.tracks = built
+          .filter((item) => item.marks.length > 0)
+          .map((item) => ({ entityId: item.entity.id, marks: item.marks }))
+        if (lightingRaw) scene.environment.lighting = lightingRaw
+
+        shot.name = str(rawShot, 'name') ?? shot.name
+        shot.duration = duration
+        shot.fps = fps
+        shot.aspect = aspect
+        const notes = str(rawShot, 'notes')
+        if (notes !== undefined) shot.notes = notes
+        if (rigRaw) shot.camera.rig = rigRaw
+        if (Array.isArray(rawCameraMarks)) shot.camera.marks = cameraMarks
+
+        const trackEntityKey = str(rawShot, 'trackEntityKey')
+        if (trackEntityKey) {
+          const target = entityIdsByKey[trackEntityKey]
+          if (!target) throw new Error(`Unknown trackEntityKey "${trackEntityKey}".`)
+          shot.camera.trackEntityId = target
+        } else {
+          delete shot.camera.trackEntityId
+        }
+        delete shot.camera.mountEntityId
+        replaced = true
+      })
+      if (!replaced) throw new Error('No active scene/shot/blocking take to replace.')
+      s.setTime(0)
+      s.setSelection(null)
+      return { replaced: true, entities: entityIdsByKey, stateToken: currentStateToken() }
     }
 
     case 'add_entity': {
@@ -351,6 +572,40 @@ async function execute(action: string, params: Params): Promise<unknown> {
         description: p.description,
         track: p.track
       }))
+    }
+
+    case 'list_camera_recipes':
+      return CAMERA_RECIPES
+
+    case 'apply_camera_recipe': {
+      requireDoc()
+      assertExpectedState(params)
+      const recipeId = str(params, 'recipeId') ?? ''
+      const recipe = getCameraRecipe(recipeId)
+      if (!recipe) throw new Error(`Unknown recipeId "${recipeId}" — call list_camera_recipes.`)
+      const subjectId = str(params, 'entityId')
+      if (subjectId) {
+        if (!s.scene()?.entities.some((entity) => entity.id === subjectId)) {
+          throw new Error(`No entity "${subjectId}".`)
+        }
+        s.setSelection({ kind: 'entity', entityId: subjectId })
+      }
+      s.setTime(0)
+      requireManager().applyCameraMove(recipe.presetId)
+      if (recipe.defaultLens !== null) {
+        s.mutate('agent: camera recipe lens', (doc) => {
+          const scene = doc.scenes.find((sc) => sc.id === useStore.getState().sceneId)
+          const shot = scene?.shots.find((sh) => sh.id === useStore.getState().shotId)
+          if (!shot) return
+          for (const mark of shot.camera.marks) mark.focalLength = recipe.defaultLens!
+        })
+      }
+      return {
+        applied: recipe.id,
+        presetId: recipe.presetId,
+        defaultLens: recipe.defaultLens,
+        stateToken: currentStateToken()
+      }
     }
 
     case 'set_track_subject': {
@@ -592,14 +847,54 @@ async function execute(action: string, params: Params): Promise<unknown> {
       s.setPlaying(false)
       return { playing: false }
 
+    case 'review_shot': {
+      requireDoc()
+      assertExpectedState(params, false)
+      const shot = s.shot()
+      if (!shot) throw new Error('No active shot.')
+      const maxFrames = Math.min(9, Math.max(2, Math.round(flt(params, 'maxFrames') ?? 6)))
+      const times = reviewTimes(
+        shot.duration,
+        shot.fps,
+        shot.camera.marks.map((mark) => mark.time),
+        maxFrames
+      )
+      const png = await renderReviewSheetPng(times)
+      return { imageBase64: bufferToBase64(png) }
+    }
+
+    case 'export_shot': {
+      requireDoc()
+      assertExpectedState(params, false)
+      const profileId = str(params, 'profileId') ?? s.doc?.settings.defaultProfileId ?? 'seedance-2.5'
+      if (!BUILTIN_PROFILES.some((profile) => profile.id === profileId)) {
+        throw new Error(`Unknown profileId "${profileId}".`)
+      }
+      const resolutionRaw = str(params, 'resolution')
+      const resolution: ExportResolution =
+        resolutionRaw === '720p' || resolutionRaw === '1080p' ? resolutionRaw : 'auto'
+      const labelsRaw = str(params, 'labels')
+      const labels: 'on' | 'stillsOnly' | 'off' =
+        labelsRaw === 'on' || labelsRaw === 'off' ? labelsRaw : 'stillsOnly'
+      const result = await exportShot({
+        profileId,
+        passes: {
+          clean: bool(params, 'clean') ?? true,
+          depth: bool(params, 'depth') ?? false,
+          normal: bool(params, 'normal') ?? false
+        },
+        labels,
+        resolution
+      })
+      if (!result.ok || !result.packagePath) throw new Error(result.error ?? 'Shot export failed.')
+      return { packagePath: result.packagePath, profileId }
+    }
+
     case 'screenshot': {
       requireDoc()
       // Rendered through the SHOT camera at the playhead — what will export.
       const png = await renderStillPngForTest(useStore.getState().time, 960, 540)
-      let binary = ''
-      const bytes = new Uint8Array(png)
-      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!)
-      return { imageBase64: btoa(binary) }
+      return { imageBase64: bufferToBase64(png) }
     }
 
     case 'set_reference': {
