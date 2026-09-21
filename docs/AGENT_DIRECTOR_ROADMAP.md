@@ -58,9 +58,9 @@ Token target: a normal shot should need roughly:
 
 ```
 get_state
-replace_scene
-apply_camera_recipe       # optional if blueprint already contains camera marks
+compile_shot
 review_shot
+approve_hero_frame
 export_shot
 ```
 
@@ -69,12 +69,20 @@ The full legacy tool catalog remains available with
 
 ## Phase 2 — human approval and hero-frame gate
 
-- persistent human locks for approved entity transforms, blocking tracks,
-  camera marks, lens, and framing;
-- explicit hero-frame time per shot;
-- validation before mutation when a requested change touches a lock;
-- review sheet highlights hero / first / middle / last and warning frames;
-- camera-keyframe editing UX aligned with the review workflow.
+Implemented in the current branch:
+
+- persistent shot-level human locks for camera, lens, framing and staging;
+- entity-track blocking locks;
+- explicit hero-frame candidate + approval state;
+- agent mutations reject protected staging/camera changes;
+- review sheets preserve the hero-frame time even when frame count is capped;
+- Seedance 2.5 MCP exports require an approved hero frame by default.
+
+Still to do:
+
+- camera-keyframe editing UX aligned with the review workflow;
+- automatic lock controls in the desktop UI;
+- richer warning-frame selection in review sheets.
 
 ## Phase 3 — operator layer
 
