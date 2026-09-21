@@ -33,7 +33,8 @@ const CONTROL_CAPABILITIES = [
   'agent-director-v1',
   'state-token',
   'review-shot',
-  'export-shot'
+  'export-shot',
+  'motion-previs-camera-import'
 ] as const
 
 // Per-action timeouts: rendering/exporting legitimately take longer.
