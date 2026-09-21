@@ -106,8 +106,7 @@ test('atomic shot plan → camera recipe → one-sheet review → Seedance expor
         x: 2.2,
         z: -2,
         rotationDeg: 15
-      }
-,
+      },
       {
         key: 'plinth',
         assetId: 'prim.cube',
