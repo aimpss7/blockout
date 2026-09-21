@@ -128,7 +128,13 @@ https://seed.bytedance.com/en/blog/one-take-creation-flexible-referencing-introd
 
 ## Phase 5 — measured-reference workflow
 
-Keep Motion Previs Studio separate and use its existing handoff:
+Partially implemented: `import_motion_previs_camera` now consumes Motion Previs
+Studio v4 `camera_motion.json`, anchors the measured move to the current
+Blockout camera, retimes it to the shot (or adopts source duration), and writes
+editable Blockout camera marks. The source JSON is copied into the project for
+provenance.
+
+Keep Motion Previs Studio separate and use its existing analysis pipeline:
 
 ```
 film / ad / phone reference
@@ -136,7 +142,7 @@ film / ad / phone reference
 Motion Previs Studio
 camera_motion + pose + depth
       ↓
-Blockout ghost reference / future camera import
+Blockout ghost reference / measured camera import
       ↓
 new staging with measured camera language
 ```
