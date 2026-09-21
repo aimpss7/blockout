@@ -107,6 +107,15 @@ test('atomic shot plan → camera recipe → one-sheet review → Seedance expor
         z: -2,
         rotationDeg: 15
       }
+,
+      {
+        key: 'plinth',
+        assetId: 'prim.cube',
+        label: 'PLINTH',
+        x: -2,
+        z: -1,
+        params: { width: 2.4, height: 0.6, depth: 1.2 }
+      }
     ],
     shot: {
       name: '1A',
@@ -123,6 +132,11 @@ test('atomic shot plan → camera recipe → one-sheet review → Seedance expor
   expect(replaced.ok).toBe(true)
   expect(replaced.data?.entities.hero).toBeTruthy()
   expect(replaced.data?.stateToken).not.toBe(initialToken)
+  const plinthParams = await page.evaluate(() => {
+    const scene = (window as any).__blockout.store.getState().scene()
+    return scene.entities.find((e: any) => e.label?.text === 'PLINTH')?.params
+  })
+  expect(plinthParams).toEqual({ width: 2.4, height: 0.6, depth: 1.2 })
 
   // Old reviewed state must not overwrite the new scene.
   const stale = await rpc('replace_scene', {
