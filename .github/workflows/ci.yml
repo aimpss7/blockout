@@ -60,7 +60,7 @@ jobs:
           "BLOCKOUT_E2E_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "BLOCKOUT_FFMPEG=$env:GITHUB_WORKSPACE\vendor\ffmpeg\win-x64\ffmpeg.exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "BLOCKOUT_FFPROBE=$env:GITHUB_WORKSPACE\vendor\ffmpeg\win-x64\ffprobe.exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-      - run: npx playwright test tests/e2e/smoke.spec.ts tests/e2e/cancel-export.spec.ts tests/e2e/set-reference.spec.ts
+      - run: npx playwright test tests/e2e/smoke.spec.ts tests/e2e/cancel-export.spec.ts tests/e2e/set-reference.spec.ts tests/e2e/agent-director.spec.ts
       - name: Upload traces on failure
         if: failure()
         uses: actions/upload-artifact@v4
