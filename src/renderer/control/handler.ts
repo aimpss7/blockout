@@ -860,7 +860,7 @@ async function execute(action: string, params: Params): Promise<unknown> {
         maxFrames
       )
       const png = await renderReviewSheetPng(times)
-      return { imageBase64: bufferToBase64(png) }
+      return { imageBase64: bufferToBase64(png), stateToken: currentStateToken(), times }
     }
 
     case 'export_shot': {
