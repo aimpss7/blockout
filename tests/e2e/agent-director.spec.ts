@@ -62,8 +62,12 @@ test('atomic shot plan → camera recipe → one-sheet review → Seedance expor
   const replaced = await rpc<{
     stateToken: string
     entities: Record<string, string>
-  }>('replace_scene', {
+  }>('compile_shot', {
     _expectedStateToken: initialToken,
+    intent: 'hero approaches vehicle',
+    cameraRecipeId: 'hero-arc',
+    cameraSubjectKey: 'hero',
+    heroFrameTime: 0.6,
     lighting: 'day',
     entities: [
       {
@@ -114,23 +118,40 @@ test('atomic shot plan → camera recipe → one-sheet review → Seedance expor
   const recipes = await rpc<{ id: string }[]>('list_camera_recipes')
   expect(recipes.data?.some((recipe) => recipe.id === 'hero-arc')).toBe(true)
 
-  const recipe = await rpc<{ stateToken: string }>('apply_camera_recipe', {
+  const review = await rpc<{
+    imageBase64: string
+    stateToken: string
+    times: number[]
+    heroFrameTime: number | null
+    heroFrameApproved: boolean
+  }>('review_shot', {
     _expectedStateToken: replaced.data!.stateToken,
-    recipeId: 'hero-arc',
-    entityId: replaced.data!.entities.hero
-  })
-  expect(recipe.ok).toBe(true)
-
-  const review = await rpc<{ imageBase64: string; stateToken: string; times: number[] }>('review_shot', {
-    _expectedStateToken: recipe.data!.stateToken,
     maxFrames: 5
   })
   expect(review.ok).toBe(true)
   expect(review.data?.imageBase64.length).toBeGreaterThan(1000)
   expect(review.data?.times.length).toBeGreaterThanOrEqual(2)
+  expect(review.data?.times).toContain(0.6)
+  expect(review.data?.heroFrameApproved).toBe(false)
+
+  const approved = await rpc<{ stateToken: string; approved: boolean }>('approve_hero_frame', {
+    _expectedStateToken: review.data!.stateToken,
+    time: 0.6
+  })
+  expect(approved.ok).toBe(true)
+  expect(approved.data?.approved).toBe(true)
+
+  // Approved camera/framing is now protected from an agent recipe overwrite.
+  const lockedRecipe = await rpc('apply_camera_recipe', {
+    _expectedStateToken: approved.data!.stateToken,
+    recipeId: 'intimate-push',
+    entityId: replaced.data!.entities.hero
+  })
+  expect(lockedRecipe.ok).toBe(false)
+  expect(lockedRecipe.error).toContain('human lock')
 
   const exported = await rpc<{ packagePath: string; profileId: string }>('export_shot', {
-    _expectedStateToken: review.data!.stateToken,
+    _expectedStateToken: approved.data!.stateToken,
     profileId: 'seedance-2.5',
     clean: true,
     depth: false,
