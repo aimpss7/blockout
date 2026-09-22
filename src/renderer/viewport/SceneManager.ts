@@ -1717,7 +1717,7 @@ export class SceneManager {
    * flying plane or a walking actor. Enables aim-lock tracking when the move
    * calls for it. One undo step; adjust any mark afterwards.
    */
-  applyCameraMove(presetId: string): void {
+  applyCameraMove(presetId: string, directorRecipeId?: string): void {
     const s = this.currentState()
     const preset = CAMERA_MOVE_PRESETS.find((p) => p.id === presetId)
     if (!preset || !this.shot || !this.evaluator || !this.docScene) return
@@ -1771,11 +1771,8 @@ export class SceneManager {
         shot.camera.marks = marks
         shot.director = {
           ...shot.director,
-          // Preserve the high-level recipe identity when Director Camera
-          // intentionally calls this low-level preset; ordinary Camera Moves
-          // have no recipe metadata and remain undefined.
-          cameraRecipeId: shot.director?.cameraRecipeId,
-          cameraSubjectEntityId: shot.director?.cameraRecipeId ? subject.id : undefined,
+          cameraRecipeId: directorRecipeId,
+          cameraSubjectEntityId: directorRecipeId ? subject.id : undefined,
           heroFrameApproved: false
         }
         // Aim-lock moves stay glued to the subject even if marks are re-timed
