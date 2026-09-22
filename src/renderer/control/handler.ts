@@ -496,7 +496,7 @@ export async function executeControlAction(action: string, params: Params = {}):
         }
       })
       const safeName = `${scene.name}-${shot.name}`.replace(/[^a-zA-Z0-9_-]+/g, '-')
-      const path = `${folder}/exports/${safeName}.shot.json`
+      const path = `${folder}/plans/${safeName}.shot.json`
       await window.blockout.exportWriteFile(path, JSON.stringify(plan, null, 2) + '\n')
       return { exported: true, path, stateToken: currentStateToken() }
     }
@@ -508,7 +508,7 @@ export async function executeControlAction(action: string, params: Params = {}):
       if (!filePath) throw new Error('filePath is required.')
       const folder = s.projectFolder
       if (!folder) throw new Error('Open and save a project first.')
-      const imported = await window.blockout.importReference(folder, filePath)
+      const imported = await window.blockout.importPlan(folder, filePath)
       const bytes = await window.blockout.readProjectFile(folder, imported.relativePath)
       let parsed: unknown
       try {
