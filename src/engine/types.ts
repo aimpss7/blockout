@@ -306,6 +306,17 @@ export interface Scene {
   drafts?: Shot[]
 }
 
+export interface ProjectReferenceCard {
+  id: string
+  role: 'character' | 'product' | 'location' | 'style' | 'motion'
+  name: string
+  /** Project-relative path under refs/. */
+  relativePath: string
+  note?: string
+  createdAt: string
+  subjectKey?: string
+}
+
 export interface ProjectDoc {
   /** Schema version for forward migration. */
   version: 1
@@ -314,6 +325,8 @@ export interface ProjectDoc {
   settings: {
     defaultProfileId: string
   }
+  /** Semantic external references used by downstream AI generation. */
+  references?: ProjectReferenceCard[]
   scenes: Scene[]
 }
 
