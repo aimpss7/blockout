@@ -35,6 +35,8 @@ export interface ShotPlanEntity {
   z?: number
   rotationDeg?: number
   scale?: number
+  /** Simple matte object color, #RRGGBB. */
+  color?: string
   params?: Record<string, number | string>
   marks?: ShotPlanEntityMark[]
 }
