@@ -709,6 +709,11 @@ const TOOLS = [
         requireApprovedHeroFrame: {
           type: 'boolean',
           description: 'Defaults true for seedance-2.5; set false only for exploratory exports.'
+        },
+
+        allowUnsupportedAspect: {
+          type: 'boolean',
+          description: 'Default false. Explicit escape hatch when the selected generator profile does not declare the shot aspect.'
         }
       },
       additionalProperties: false
