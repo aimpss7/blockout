@@ -231,6 +231,8 @@ export function App(): JSX.Element {
   const dirty = useStore((s) => s.dirty)
   const markSaved = useStore((s) => s.markSaved)
   const folder = useStore((s) => s.projectFolder)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [snapshots, setSnapshots] = useState<{ name: string; path: string; savedAt: string; bytes: number }[]>([])
 
   useAutosave()
   useKeyboard()
@@ -249,6 +251,26 @@ export function App(): JSX.Element {
     await window.blockout.saveSnapshot(folder, json, 'manual-checkpoint')
     useStore.getState().toast('Project checkpoint saved.', 'success')
   }, [folder])
+
+  const openHistory = useCallback(async () => {
+    if (!folder) return
+    setSnapshots(await window.blockout.listSnapshots(folder))
+    setHistoryOpen(true)
+  }, [folder])
+
+  const restoreSnapshot = useCallback(
+    async (path: string) => {
+      if (!folder) return
+      const current = currentProjectJson()
+      if (current) await window.blockout.saveSnapshot(folder, current, 'before-restore')
+      const json = await window.blockout.readTextFile(path)
+      if (useStore.getState().loadFromJson(folder, json)) {
+        setHistoryOpen(false)
+        useStore.getState().toast('Checkpoint restored. Save to make it current.', 'success')
+      }
+    },
+    [folder]
+  )
 
   if (!doc) {
     return (
@@ -288,6 +310,9 @@ export function App(): JSX.Element {
         <button className="btn small" onClick={onSnapshot} title="Save a timestamped project checkpoint">
           Checkpoint
         </button>
+        <button className="btn small" onClick={openHistory} title="Browse project checkpoints">
+          History
+        </button>
         <button
           className="btn small"
           title="Help: quick start, how-do-I answers, shortcuts (?)"
@@ -325,6 +350,30 @@ export function App(): JSX.Element {
       <Toasts />
       <HelpOverlay />
       <BlockingCoach />
+      {historyOpen && (
+        <div className="help-backdrop" onMouseDown={() => setHistoryOpen(false)}>
+          <div className="history-modal" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="history-header">
+              <b>Project checkpoints</b>
+              <button className="btn small" onClick={() => setHistoryOpen(false)}>Close</button>
+            </div>
+            <div className="history-list">
+              {snapshots.length === 0 && <div className="history-empty">No checkpoints yet.</div>}
+              {snapshots.map((item) => (
+                <div className="history-item" key={item.path}>
+                  <div>
+                    <div className="history-name">{item.name}</div>
+                    <div className="history-meta">
+                      {new Date(item.savedAt).toLocaleString()} · {Math.max(1, Math.round(item.bytes / 1024))} KB
+                    </div>
+                  </div>
+                  <button className="btn small" onClick={() => void restoreSnapshot(item.path)}>Restore</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
