@@ -53,7 +53,7 @@ const LIGHTING: { id: LightingPresetId; label: string }[] = [
   { id: 'blueHourSky', label: 'Blue Hour Sky' }
 ]
 
-const ASPECTS: AspectId[] = ['16:9', '9:16', '2.39:1', '4:3', '1:1']
+const ASPECTS: AspectId[] = ['9:16', '3:4', '4:5', '1:1', '16:9', '4:3', '2.39:1']
 const SHOT_SIZE_BTNS: ShotSizeId[] = ['WS', 'FS', 'MS', 'MCU', 'CU']
 
 function num(v: string): number | null {
