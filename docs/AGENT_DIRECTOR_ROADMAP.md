@@ -250,3 +250,17 @@ Implemented foundations:
 UX principle: progressive disclosure. Director intent first, operator controls
 second, technical coordinates/presets only on demand. The viewport remains the
 largest surface.
+
+
+## Current implementation additions
+
+- Portable `.shot.json` schema now exists as the shared high-level contract for
+  ChatGPT Tunnel, Codex/Claude and file-based workflows.
+- `import_shot_plan` validates and compiles that schema through the same
+  `compile_shot` path; there is no second scene-building implementation.
+- Project checkpoints can now be listed and restored from the desktop UI.
+  Restoring first writes a `before-restore` safety checkpoint.
+- Semantic reference-card types are defined for Character, Product, Location,
+  Style and Motion. Their authority is deliberately separate: motion references
+  do not own identity/look.
+- 3:4 and 4:5 now survive the complete agent shot-compiler validation path.
