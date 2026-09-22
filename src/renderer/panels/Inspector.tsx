@@ -15,6 +15,7 @@ import { RIGS } from '@engine/rigs'
 import { MOTION_PRESETS, type MotionPreset } from '@engine/motions'
 import { CAMERA_MOVE_PRESETS } from '@engine/camera-moves'
 import { CAMERA_RECIPES } from '@engine/director'
+import { executeControlAction } from '../control/handler'
 import { ACTION_PRESETS } from '@engine/action-presets'
 import { ShotEvaluator } from '@engine/evaluate'
 import { newId } from '@engine/ids'
@@ -1672,9 +1673,35 @@ function CameraInspector({ scene, shot }: { scene: Scene; shot: Shot }): JSX.Ele
 
       <div className="panel-section">
         <div className="panel-title">Director files</div>
-        <p style={{ color: 'var(--text-faint)', fontSize: 11, lineHeight: 1.4 }}>
+        <p style={{ color: 'var(--text-faint)', fontSize: 11, lineHeight: 1.4, marginBottom: 7 }}>
           Portable .shot.json uses the same Director Schema as ChatGPT, Codex and Tunnel.
         </p>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button
+            className="btn"
+            style={{ flex: 1 }}
+            onClick={() =>
+              void executeControlAction('ui_import_shot_plan').then(() =>
+                useStore.getState().toast('Shot Plan imported.', 'success')
+              ).catch((e) => useStore.getState().toast(`Shot Plan import failed: ${(e as Error).message}`, 'error'))
+            }
+          >
+            Import
+          </button>
+          <button
+            className="btn"
+            style={{ flex: 1 }}
+            onClick={() =>
+              void executeControlAction('ui_export_shot_plan').then((result) => {
+                const path = (result as { path?: string }).path
+                useStore.getState().toast('Shot Plan exported.', 'success')
+                if (path) void window.blockout.showFolder(path)
+              }).catch((e) => useStore.getState().toast(`Shot Plan export failed: ${(e as Error).message}`, 'error'))
+            }
+          >
+            Export
+          </button>
+        </div>
       </div>
 
       <div className="panel-section">
