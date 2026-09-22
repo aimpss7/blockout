@@ -7,7 +7,7 @@
 
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron'
 import { spawn, type ChildProcess } from 'child_process'
-import { mkdir, readFile, writeFile, copyFile, stat, rm } from 'fs/promises'
+import { mkdir, readFile, writeFile, copyFile, stat, rm, readdir } from 'fs/promises'
 import { join, dirname, basename, extname, resolve, sep } from 'path'
 import { registerPresetsIpc } from './presets'
 import { startControlServer } from './control'
@@ -233,6 +233,24 @@ ipcMain.handle('project:snapshot', async (_e, folder: string, json: string, reas
   )
   return { path }
 })
+
+ipcMain.handle('project:listSnapshots', async (_e, folder: string) => {
+  const dir = join(folder, 'history', 'snapshots')
+  try {
+    const names = (await readdir(dir)).filter((name) => name.endsWith('.json')).sort().reverse()
+    return await Promise.all(
+      names.map(async (name) => {
+        const path = join(dir, name)
+        const info = await stat(path)
+        return { name, path, savedAt: info.mtime.toISOString(), bytes: info.size }
+      })
+    )
+  } catch {
+    return []
+  }
+})
+
+ipcMain.handle('file:readText', async (_e, path: string) => readFile(path, 'utf-8'))
 
 ipcMain.handle('project:saveBackup', async (_e, folder: string, json: string) => {
   await mkdir(join(folder, '.autosave'), { recursive: true })
