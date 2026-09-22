@@ -163,6 +163,19 @@ const TOOLS = [
     }
   },
   {
+    name: 'export_shot_plan',
+    description:
+      'Export the active Blockout scene/shot as a portable .shot.json Director Shot Plan for ChatGPT, Codex, Claude or file handoff.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        source: { type: 'string' },
+        note: { type: 'string' }
+      },
+      additionalProperties: false
+    }
+  },
+  {
     name: 'import_shot_plan',
     description:
       'Import a portable Blockout .shot.json Director Shot Plan and compile it through the exact same path used by ChatGPT/Codex.',
@@ -827,6 +840,7 @@ const DIRECTOR_TOOL_NAMES = new Set([
   'list_assets',
   'compile_shot',
   'import_shot_plan',
+  'export_shot_plan',
   'list_camera_recipes',
   'apply_camera_recipe',
   'review_shot',
