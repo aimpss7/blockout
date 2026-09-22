@@ -2228,6 +2228,7 @@ function MarkInspector({
               if (!sh) return
               if (isCamera) {
                 sh.camera.marks = sh.camera.marks.filter((m) => m.id !== markId)
+                sh.director = { ...sh.director, heroFrameApproved: false }
               } else {
                 const sc = findScene(doc, scene.id)
                 const tk = sc?.blocking.find((b) => b.id === sh.blockingTakeId)
