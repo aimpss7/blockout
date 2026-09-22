@@ -1781,10 +1781,12 @@ function CameraInspector({ scene, shot }: { scene: Scene; shot: Shot }): JSX.Ele
 
       <DirectorCameraRecipesSection scene={scene} shot={shot} />
 
-      <CameraMovesSection scene={scene} />
+      <details className="advanced-section">
+        <summary>Advanced camera</summary>
+        <CameraMovesSection scene={scene} />
 
-      <div className="panel-section">
-        <div className="panel-title">Rig</div>
+        <div className="panel-section">
+          <div className="panel-title">Rig</div>
         <div className="seg" style={{ marginBottom: 10 }}>
           {(Object.keys(RIGS) as RigId[]).map((id) => (
             <button
@@ -1835,6 +1837,8 @@ function CameraInspector({ scene, shot }: { scene: Scene; shot: Shot }): JSX.Ele
           </div>
         )}
       </div>
+
+      </details>
 
       <div className="panel-section">
         <div className="panel-title">Marks</div>
