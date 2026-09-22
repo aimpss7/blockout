@@ -29,6 +29,7 @@ export interface BlockoutAPI {
   ): Promise<boolean>
   saveSnapshot(folder: string, json: string, reason: string): Promise<{ path: string }>
   listSnapshots(folder: string): Promise<{ name: string; path: string; savedAt: string; bytes: number }[]>
+  recentHistory(folder: string, limit?: number): Promise<Record<string, unknown>[]>
   readSnapshot(folder: string, path: string): Promise<string>
   importPlan(folder: string, sourcePath: string): Promise<{ relativePath: string; name: string }>
   listReviewArtifacts(folder: string): Promise<{ kind: 'daily' | 'hero'; name: string; path: string; savedAt: string; bytes: number }[]>
@@ -117,6 +118,7 @@ const api: BlockoutAPI = {
   appendHistoryEvent: (folder, event) => ipcRenderer.invoke('project:historyEvent', folder, event),
   saveSnapshot: (folder, json, reason) => ipcRenderer.invoke('project:snapshot', folder, json, reason),
   listSnapshots: (folder) => ipcRenderer.invoke('project:listSnapshots', folder),
+  recentHistory: (folder, limit) => ipcRenderer.invoke('project:recentHistory', folder, limit),
   readSnapshot: (folder, path) => ipcRenderer.invoke('project:readSnapshot', folder, path),
   importPlan: (folder, sourcePath) => ipcRenderer.invoke('project:importPlan', folder, sourcePath),
   listReviewArtifacts: (folder) => ipcRenderer.invoke('project:listReviews', folder),
