@@ -258,6 +258,26 @@ ipcMain.handle('project:readSnapshot', async (_e, folder: string, path: string) 
   return readFile(full, 'utf-8')
 })
 
+ipcMain.handle('project:recentHistory', async (_e, folder: string, limit = 30) => {
+  const safeLimit = Math.min(200, Math.max(1, Math.round(Number(limit) || 30)))
+  try {
+    const raw = await readFile(join(folder, 'history', 'events.jsonl'), 'utf-8')
+    return raw
+      .split('\n')
+      .filter(Boolean)
+      .slice(-safeLimit)
+      .map((line) => {
+        try {
+          return JSON.parse(line) as Record<string, unknown>
+        } catch {
+          return { type: 'malformed-history-line', raw: line }
+        }
+      })
+  } catch {
+    return []
+  }
+})
+
 ipcMain.handle('project:listReviews', async (_e, folder: string) => {
   const out: { kind: 'daily' | 'hero'; name: string; path: string; savedAt: string; bytes: number }[] = []
   for (const kind of ['daily', 'hero'] as const) {
