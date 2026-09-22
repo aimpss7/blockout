@@ -16,6 +16,9 @@ export type DirectingIntent =
   | 'orientation'
   | 'spectacle'
   | 'disorientation'
+  | 'energy'
+  | 'observation'
+  | 'product'
 
 export interface CameraRecipe {
   id: string
@@ -28,6 +31,12 @@ export interface CameraRecipe {
   /** Suggested lens for the move. Null means preserve the preset's lens logic. */
   defaultLens: number | null
   pacing: 'slow' | 'measured' | 'fast'
+  /** Suggested framing language for humans/agents; execution remains editable. */
+  shotSize?: 'EWS' | 'WS' | 'FS' | 'MS' | 'MCU' | 'CU' | 'ECU'
+  /** Suggested camera-height language. */
+  height?: 'ground' | 'low' | 'eye' | 'high' | 'overhead'
+  /** Editorial use, e.g. product, dialogue, vehicle, establishing. */
+  useCase?: 'character' | 'dialogue' | 'product' | 'vehicle' | 'environment' | 'action'
   description: string
 }
 
@@ -135,7 +144,75 @@ export const CAMERA_RECIPES: CameraRecipe[] = [
     shotFunction: 'Keep subject scale while changing perspective for psychological disorientation.',
     defaultLens: null,
     pacing: 'measured',
+    shotSize: 'MS',
+    height: 'eye',
+    useCase: 'character',
     description: 'Dolly-zoom recipe; lens animation is owned by the underlying preset.'
+  },
+  {
+    id: 'product-reveal',
+    name: 'Product Reveal',
+    intent: 'product',
+    presetId: 'arc-and-push',
+    shotFunction: 'Reveal form and depth while progressively concentrating attention on the object.',
+    defaultLens: 50,
+    pacing: 'slow',
+    shotSize: 'MCU',
+    height: 'eye',
+    useCase: 'product',
+    description: 'Controlled arc plus push for products and props; avoids an aggressive wide-angle look.'
+  },
+  {
+    id: 'compressed-observer',
+    name: 'Compressed Observer',
+    intent: 'observation',
+    presetId: 'slow-push-in',
+    shotFunction: 'Observe from apparent distance while flattening foreground/background relationships.',
+    defaultLens: 85,
+    pacing: 'slow',
+    shotSize: 'MS',
+    height: 'eye',
+    useCase: 'character',
+    description: 'Long-lens observational push; useful for surveillance, isolation, and unobtrusive character coverage.'
+  },
+  {
+    id: 'wide-energy-follow',
+    name: 'Wide Energy Follow',
+    intent: 'energy',
+    presetId: 'follow-behind',
+    shotFunction: 'Make travel feel fast and spatial by keeping a wide lens close to the moving subject.',
+    defaultLens: 24,
+    pacing: 'fast',
+    shotSize: 'FS',
+    height: 'eye',
+    useCase: 'action',
+    description: 'Wide moving follow with strong perspective change; useful for running, riding, and kinetic entrances.'
+  },
+  {
+    id: 'vehicle-hero',
+    name: 'Vehicle Hero',
+    intent: 'hero',
+    presetId: 'orbit-90-right',
+    shotFunction: 'Describe the vehicle silhouette and volume with lateral parallax.',
+    defaultLens: 50,
+    pacing: 'measured',
+    shotSize: 'FS',
+    height: 'low',
+    useCase: 'vehicle',
+    description: 'Low, moderately long-lens quarter orbit designed for cars and other hero vehicles.'
+  },
+  {
+    id: 'quiet-dialogue-push',
+    name: 'Quiet Dialogue Push',
+    intent: 'intimacy',
+    presetId: 'slow-push-in',
+    shotFunction: 'Increase dramatic pressure inside dialogue without calling attention to the move.',
+    defaultLens: 65,
+    pacing: 'slow',
+    shotSize: 'MCU',
+    height: 'eye',
+    useCase: 'dialogue',
+    description: 'Subtle longer-lens push for dialogue beats, reactions, and realizations.'
   }
 ]
 
