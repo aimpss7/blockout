@@ -64,7 +64,7 @@ export type SensorId = 'super16' | 'super35' | 'fullFrame' | 'imax65'
 
 export type ShotSizeId = 'EWS' | 'WS' | 'FS' | 'MS' | 'MCU' | 'CU' | 'ECU'
 
-export type AspectId = '16:9' | '9:16' | '2.39:1' | '4:3' | '1:1'
+export type AspectId = '16:9' | '9:16' | '3:4' | '4:5' | '2.39:1' | '4:3' | '1:1'
 
 export interface Label {
   text: string
