@@ -28,6 +28,8 @@ export interface BlockoutAPI {
     event: { type: string; source: string; label?: string; sceneId?: string | null; shotId?: string | null }
   ): Promise<boolean>
   saveSnapshot(folder: string, json: string, reason: string): Promise<{ path: string }>
+  listSnapshots(folder: string): Promise<{ name: string; path: string; savedAt: string; bytes: number }[]>
+  readTextFile(path: string): Promise<string>
   saveBackup(folder: string, json: string): Promise<boolean>
   loadProject(folder: string): Promise<{
     json: string | null
@@ -112,6 +114,8 @@ const api: BlockoutAPI = {
   saveProject: (folder, json) => ipcRenderer.invoke('project:save', folder, json),
   appendHistoryEvent: (folder, event) => ipcRenderer.invoke('project:historyEvent', folder, event),
   saveSnapshot: (folder, json, reason) => ipcRenderer.invoke('project:snapshot', folder, json, reason),
+  listSnapshots: (folder) => ipcRenderer.invoke('project:listSnapshots', folder),
+  readTextFile: (path) => ipcRenderer.invoke('file:readText', path),
   saveBackup: (folder, json) => ipcRenderer.invoke('project:saveBackup', folder, json),
   loadProject: (folder) => ipcRenderer.invoke('project:load', folder),
   importAsset: (folder, sourcePath) => ipcRenderer.invoke('project:importAsset', folder, sourcePath),
