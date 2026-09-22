@@ -15,6 +15,12 @@ describe('Director Shot Plan', () => {
     expect(() => validateShotPlan(plan)).toThrow('Duplicate entity key')
   })
 
+  it('round-trips simple matte object colors', () => {
+    const plan = shotPlanExample()
+    plan.entities[0]!.color = '#005bff'
+    expect(validateShotPlan(plan).entities[0]!.color).toBe('#005bff')
+  })
+
   it('supports portrait social formats', () => {
     for (const aspect of ['9:16', '3:4', '4:5'] as const) {
       const plan = shotPlanExample()
