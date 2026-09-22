@@ -234,3 +234,19 @@ vision agent can infer motion from ordered poses and camera states.
 
 This is intentionally optimized for multimodal LLM review: one image carries
 the temporal story of the shot without N screenshot tool calls.
+
+
+## Director UX pass
+
+Implemented foundations:
+- social-first format order: 9:16, 3:4, 4:5, 1:1 before legacy/cinema ratios;
+- editor-only social safe-area guides in shot look-through;
+- denser right inspector;
+- AI protection controls collapsed into toggle switches;
+- raw camera move catalog + rig controls moved behind **Advanced camera**;
+- Director Camera remains the primary creative control surface;
+- arbitrary 8–300mm exact focal length remains available.
+
+UX principle: progressive disclosure. Director intent first, operator controls
+second, technical coordinates/presets only on demand. The viewport remains the
+largest surface.
