@@ -189,10 +189,30 @@ export function validateProject(doc: unknown): ValidationIssue[] {
         const shot = sh as Record<string, unknown>
         if (typeof shot.duration !== 'number' || shot.duration <= 0)
           err(`scenes[${i}].shots[${j}].duration`, 'duration must be > 0')
+        const aspects = new Set(['16:9', '9:16', '3:4', '4:5', '2.39:1', '4:3', '1:1'])
+        if (typeof shot.aspect !== 'string' || !aspects.has(shot.aspect))
+          err(`scenes[${i}].shots[${j}].aspect`, 'unknown aspect ratio')
+        if (typeof shot.fps !== 'number' || shot.fps <= 0 || shot.fps > 120)
+          err(`scenes[${i}].shots[${j}].fps`, 'fps must be between 0 and 120')
         if (typeof shot.blockingTakeId !== 'string' || !takeIds.has(shot.blockingTakeId))
           err(`scenes[${i}].shots[${j}].blockingTakeId`, 'references a missing blocking take')
         const camera = shot.camera as Record<string, unknown> | undefined
-        if (!camera || !Array.isArray(camera.marks)) err(`scenes[${i}].shots[${j}].camera`, 'missing camera')
+        if (!camera || !Array.isArray(camera.marks)) {
+          err(`scenes[${i}].shots[${j}].camera`, 'missing camera')
+        } else {
+          const sensors = new Set(['super16', 'super35', 'fullFrame', 'imax65'])
+          const rigs = new Set(['sticks', 'dolly', 'steadicam', 'handheld', 'crane', 'drone', 'carMount'])
+          if (typeof camera.sensorId !== 'string' || !sensors.has(camera.sensorId))
+            err(`scenes[${i}].shots[${j}].camera.sensorId`, 'unknown sensor')
+          if (typeof camera.rig !== 'string' || !rigs.has(camera.rig))
+            err(`scenes[${i}].shots[${j}].camera.rig`, 'unknown camera rig')
+          ;(camera.marks as unknown[]).forEach((mark, k) => {
+            if (!mark || typeof mark !== 'object') return
+            const focal = (mark as Record<string, unknown>).focalLength
+            if (typeof focal !== 'number' || focal < 8 || focal > 300)
+              err(`scenes[${i}].shots[${j}].camera.marks[${k}].focalLength`, 'must be 8–300mm')
+          })
+        }
         const reference = shot.referenceVideo as Record<string, unknown> | undefined
         if (reference &&
           (typeof reference.path !== 'string' || normalizeProjectRelativePath(reference.path) === null)) {
