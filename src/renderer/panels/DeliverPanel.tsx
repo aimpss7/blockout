@@ -233,6 +233,67 @@ export function DeliverPanel(): JSX.Element {
         Copy prompt
       </button>
 
+      <div className="panel-title">References</div>
+      <p style={{ color: 'var(--text-faint)', fontSize: 11, lineHeight: 1.45, marginBottom: 8 }}>
+        Keep identity/look references separate from motion. These roles are carried into the project and downstream handoff.
+      </p>
+      <div className="reference-card-grid">
+        {(['character', 'product', 'location', 'style', 'motion'] as const).map((role) => {
+          const count = doc?.references?.filter((ref) => ref.role === role).length ?? 0
+          return (
+            <button
+              key={role}
+              className="reference-role-card"
+              onClick={() => {
+                void window.blockout
+                  .pickFile([{ name: `${role} reference`, extensions: ['jpg', 'jpeg', 'png', 'webp', 'mp4', 'mov'] }])
+                  .then(async (path) => {
+                    if (!path) return
+                    const folder = useStore.getState().projectFolder
+                    if (!folder) return
+                    const imported = await window.blockout.importReference(folder, path)
+                    mutate('add reference card', (project) => {
+                      project.references = project.references ?? []
+                      project.references.push({
+                        id: `ref-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+                        role,
+                        name: imported.name,
+                        relativePath: imported.relativePath,
+                        createdAt: new Date().toISOString()
+                      })
+                    })
+                    toast(`${role} reference added.`, 'success')
+                  })
+              }}
+            >
+              <b>{role.toUpperCase()}</b>
+              <span>{count}</span>
+            </button>
+          )
+        })}
+      </div>
+      {(doc?.references?.length ?? 0) > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          {doc!.references!.map((ref) => (
+            <div className="visual-memory-row" key={ref.id}>
+              <span className="visual-memory-kind">{ref.role.toUpperCase().slice(0, 5)}</span>
+              <span className="visual-memory-name">{ref.name}</span>
+              <button
+                className="rail-btn"
+                title="Remove reference card (copied file remains in refs/)"
+                onClick={() =>
+                  mutate('remove reference card', (project) => {
+                    project.references = (project.references ?? []).filter((item) => item.id !== ref.id)
+                  })
+                }
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="panel-title">Visual Memory</div>
       <p style={{ color: 'var(--text-faint)', fontSize: 11, lineHeight: 1.45, marginBottom: 8 }}>
         Phase boards pack the important animation phases into one compact WebP for ChatGPT/agent review.
