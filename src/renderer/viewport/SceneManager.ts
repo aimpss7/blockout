@@ -585,7 +585,7 @@ export class SceneManager {
     visual.root.position.set(t.position.x, t.position.y, t.position.z)
     visual.root.rotation.y = t.rotationY
     visual.root.scale.setScalar(t.scale)
-    visual.built.setTint(visual.entity.label?.color ?? null)
+    visual.built.setTint(visual.entity.color ?? visual.entity.label?.color ?? null)
   }
 
   private syncLabel(visual: EntityVisual): void {
