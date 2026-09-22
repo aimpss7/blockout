@@ -299,6 +299,8 @@ export async function executeControlAction(action: string, params: Params = {}):
         )
         entity.transform.rotationY = toRad(flt(raw, 'rotationDeg') ?? 0)
         entity.transform.scale = Math.min(20, Math.max(0.05, flt(raw, 'scale') ?? 1))
+        const objectColor = str(raw, 'color')
+        if (objectColor && /^#[0-9a-fA-F]{6}$/.test(objectColor)) entity.color = objectColor
         if (raw.params && typeof raw.params === 'object' && !Array.isArray(raw.params)) {
           entity.params = Object.fromEntries(
             Object.entries(raw.params as Record<string, unknown>).filter(
@@ -438,6 +440,7 @@ export async function executeControlAction(action: string, params: Params = {}):
           z: entity.transform.position.z,
           rotationDeg: toDeg(entity.transform.rotationY),
           scale: entity.transform.scale,
+          color: entity.color,
           params: entity.params,
           marks: track?.marks.map((mark) => ({
             time: mark.time,
