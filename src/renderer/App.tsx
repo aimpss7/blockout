@@ -268,7 +268,7 @@ export function App(): JSX.Element {
       if (!folder) return
       const current = currentProjectJson()
       if (current) await window.blockout.saveSnapshot(folder, current, 'before-restore')
-      const json = await window.blockout.readTextFile(path)
+      const json = await window.blockout.readSnapshot(folder, path)
       if (useStore.getState().loadFromJson(folder, json)) {
         setHistoryOpen(false)
         useStore.getState().toast('Checkpoint restored. Save to make it current.', 'success')
