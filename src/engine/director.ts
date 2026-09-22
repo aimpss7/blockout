@@ -5,7 +5,7 @@
  * keeps the agent-facing directing vocabulary compact and deterministic.
  */
 
-import type { ProjectDoc } from './types'
+import type { ProjectDoc, Scene, Shot } from './types'
 
 export type DirectingIntent =
   | 'intimacy'
@@ -218,6 +218,42 @@ export const CAMERA_RECIPES: CameraRecipe[] = [
 
 export function getCameraRecipe(id: string): CameraRecipe | undefined {
   return CAMERA_RECIPES.find((recipe) => recipe.id === id)
+}
+
+/**
+ * Fingerprint only the visual/timing state that can invalidate an approved
+ * Hero Frame. Names, notes, reference metadata and Director locks are excluded.
+ * Shared scene staging/blocking intentionally affects every shot that sees it.
+ */
+export function heroApprovalFingerprint(scene: Scene, shot: Shot): string {
+  const take = scene.blocking.find((item) => item.id === shot.blockingTakeId)
+  const payload = JSON.stringify({
+    environment: scene.environment,
+    entities: scene.entities.map((entity) => ({
+      id: entity.id,
+      assetId: entity.assetId,
+      transform: entity.transform,
+      params: entity.params ?? null,
+      color: entity.color ?? null,
+      sourceFile: entity.sourceFile ?? null,
+      attachedTo: entity.attachedTo ?? null,
+      attachedLocal: entity.attachedLocal ?? null,
+      excludeFromExport: entity.excludeFromExport ?? false
+    })),
+    blocking: take ?? null,
+    shot: {
+      duration: shot.duration,
+      fps: shot.fps,
+      aspect: shot.aspect,
+      camera: shot.camera
+    }
+  })
+  let hash = 0x811c9dc5
+  for (let i = 0; i < payload.length; i++) {
+    hash ^= payload.charCodeAt(i)
+    hash = Math.imul(hash, 0x01000193)
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0')
 }
 
 /**
