@@ -26,6 +26,8 @@ export const LENS_SET = [12, 16, 24, 35, 50, 85, 100, 135]
 export const ASPECT_RATIOS: Record<AspectId, number> = {
   '16:9': 16 / 9,
   '9:16': 9 / 16,
+  '3:4': 3 / 4,
+  '4:5': 4 / 5,
   '2.39:1': 2.39,
   '4:3': 4 / 3,
   '1:1': 1
