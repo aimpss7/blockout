@@ -243,6 +243,13 @@ export function App(): JSX.Element {
     }
   }, [folder, markSaved])
 
+  const onSnapshot = useCallback(async () => {
+    const json = currentProjectJson()
+    if (!json || !folder) return
+    await window.blockout.saveSnapshot(folder, json, 'manual-checkpoint')
+    useStore.getState().toast('Project checkpoint saved.', 'success')
+  }, [folder])
+
   if (!doc) {
     return (
       <div className={`app ${PLATFORM_CLASS}`}>
@@ -277,6 +284,9 @@ export function App(): JSX.Element {
         </div>
         <button className="btn small" onClick={onSave}>
           Save
+        </button>
+        <button className="btn small" onClick={onSnapshot} title="Save a timestamped project checkpoint">
+          Checkpoint
         </button>
         <button
           className="btn small"
