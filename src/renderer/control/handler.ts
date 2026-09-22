@@ -270,7 +270,7 @@ async function execute(action: string, params: Params): Promise<unknown> {
       const fps = fpsRaw === 25 || fpsRaw === 30 ? fpsRaw : 24
       const aspectRaw = str(rawShot, 'aspect') as AspectId | undefined
       const aspect: AspectId =
-        aspectRaw && ['16:9', '9:16', '2.39:1', '4:3', '1:1'].includes(aspectRaw)
+        aspectRaw && ['16:9', '9:16', '3:4', '4:5', '2.39:1', '4:3', '1:1'].includes(aspectRaw)
           ? aspectRaw
           : s.shot()?.aspect ?? '16:9'
       const rigRaw = str(rawShot, 'rig') as RigId | undefined
