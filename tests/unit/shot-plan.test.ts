@@ -21,6 +21,12 @@ describe('Director Shot Plan', () => {
     expect(validateShotPlan(plan).entities[0]!.color).toBe('#005bff')
   })
 
+  it('rejects malformed object colors at the interchange boundary', () => {
+    const plan = shotPlanExample()
+    plan.entities[0]!.color = 'blue'
+    expect(() => validateShotPlan(plan)).toThrow('#RRGGBB')
+  })
+
   it('supports portrait social formats', () => {
     for (const aspect of ['9:16', '3:4', '4:5'] as const) {
       const plan = shotPlanExample()
