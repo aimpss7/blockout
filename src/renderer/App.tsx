@@ -231,11 +231,15 @@ export function App(): JSX.Element {
   const dirty = useStore((s) => s.dirty)
   const markSaved = useStore((s) => s.markSaved)
   const folder = useStore((s) => s.projectFolder)
+  const [language, setLanguage] = useState<'en' | 'ru'>('en')
   const [historyOpen, setHistoryOpen] = useState(false)
   const [snapshots, setSnapshots] = useState<{ name: string; path: string; savedAt: string; bytes: number }[]>([])
 
   useAutosave()
   useKeyboard()
+  useEffect(() => {
+    void window.blockout.workspaceGet().then((settings) => setLanguage(settings.language))
+  }, [])
 
   const onSave = useCallback(async () => {
     const json = currentProjectJson()
@@ -313,6 +317,19 @@ export function App(): JSX.Element {
         <button className="btn small" onClick={openHistory} title="Browse project checkpoints">
           History
         </button>
+        <select
+          className="language-select"
+          value={language}
+          title="Interface language"
+          onChange={(e) => {
+            const next = e.target.value === 'ru' ? 'ru' : 'en'
+            setLanguage(next)
+            void window.blockout.workspaceSetLanguage(next)
+          }}
+        >
+          <option value="en">EN</option>
+          <option value="ru">RU</option>
+        </select>
         <button
           className="btn small"
           title="Help: quick start, how-do-I answers, shortcuts (?)"
