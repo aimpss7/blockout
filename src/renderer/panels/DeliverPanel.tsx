@@ -17,6 +17,7 @@ import {
   type ExportResolution
 } from '../export/exporter'
 import { exportGlb } from '../export/gltf'
+import { executeControlAction } from '../control/handler'
 
 export function DeliverPanel(): JSX.Element {
   const doc = useStore((s) => s.doc)
@@ -295,6 +296,38 @@ export function DeliverPanel(): JSX.Element {
       )}
 
       <div className="panel-title">Visual Memory</div>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+        <button
+          className="btn primary"
+          style={{ flex: 1 }}
+          onClick={() =>
+            void executeControlAction('ui_save_visual_checkpoint', { kind: 'daily', maxFrames: 8 })
+              .then(() => {
+                toast('Daily phase board saved.', 'success')
+                const folder = useStore.getState().projectFolder
+                if (folder) void window.blockout.listReviewArtifacts(folder).then(setReviews)
+              })
+              .catch((e) => toast(`Daily failed: ${(e as Error).message}`, 'error'))
+          }
+        >
+          Save Daily
+        </button>
+        <button
+          className="btn"
+          style={{ flex: 1 }}
+          onClick={() =>
+            void executeControlAction('ui_save_visual_checkpoint', { kind: 'hero', maxFrames: 8 })
+              .then(() => {
+                toast('Hero phase board saved.', 'success')
+                const folder = useStore.getState().projectFolder
+                if (folder) void window.blockout.listReviewArtifacts(folder).then(setReviews)
+              })
+              .catch((e) => toast(`Hero board failed: ${(e as Error).message}`, 'error'))
+          }
+        >
+          Save Hero Board
+        </button>
+      </div>
       <p style={{ color: 'var(--text-faint)', fontSize: 11, lineHeight: 1.45, marginBottom: 8 }}>
         Phase boards pack the important animation phases into one compact WebP for ChatGPT/agent review.
       </p>
