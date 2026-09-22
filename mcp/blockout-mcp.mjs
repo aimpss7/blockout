@@ -43,6 +43,18 @@ const PROTOCOL_VERSION = '2024-11-05'
 // object is passed through verbatim as that action's params.
 const TOOLS = [
   {
+    name: 'get_recent_changes',
+    description:
+      'Return the latest compact project history events so an agent can understand what changed without re-reading the whole project.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        limit: { type: 'number', description: '1–100 events; default 30.' }
+      },
+      additionalProperties: false
+    }
+  },
+  {
     name: 'get_state',
     description:
       'Call FIRST. Returns compact project/scene/shot state plus stateToken. Use detail="full" only when exact actor/camera marks are required. Coordinates: meters, +X right, -Z forward; heading 0 faces -Z.',
@@ -844,6 +856,7 @@ const TOOLS = [
 
 const DIRECTOR_TOOL_NAMES = new Set([
   'get_state',
+  'get_recent_changes',
   'list_assets',
   'compile_shot',
   'import_shot_plan',
