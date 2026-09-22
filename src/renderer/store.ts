@@ -458,6 +458,19 @@ export const useStore = create<BlockoutState>((set, get) => ({
       // Keep the snapshot taken at the start of the swipe; just move the doc.
       set({ doc: next, dirty: true })
     } else {
+      const folder = get().projectFolder
+      if (folder) {
+        // Fire-and-forget append-only provenance. The project JSON remains the
+        // source of truth; this small log lets agents ask "what changed?"
+        // without re-reading the entire document.
+        void window.blockout.appendHistoryEvent(folder, {
+          type: 'mutation',
+          source: label.startsWith('agent:') ? 'agent' : 'human',
+          label,
+          sceneId: get().sceneId,
+          shotId: get().shotId
+        })
+      }
       const snapshot = serializeProject(doc)
       set({
         doc: next,
