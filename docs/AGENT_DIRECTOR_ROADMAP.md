@@ -281,3 +281,17 @@ Implemented:
 
 Remaining localization work is breadth: route all visible strings through the
 curated dictionary before declaring RU complete.
+
+
+## Desktop workflow closure
+
+The desktop app now uses the same Director action executor as MCP:
+- Camera inspector **Import / Export** buttons are functional for portable
+  `.shot.json` plans.
+- active shots can be serialized back into a portable Shot Plan, including
+  staging, blocking, camera marks, lens, rig, social format and provenance.
+- Deliver has one-click **Save Daily** and **Save Hero Board** actions; these
+  invoke the same phase-board implementation exposed to agents.
+- no duplicate desktop-only scene compiler was introduced.
+
+This closes the core human ↔ file ↔ agent round trip before tunnel work.
