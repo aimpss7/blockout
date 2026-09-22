@@ -16,6 +16,9 @@ export interface PlatformInfo {
 
 export interface BlockoutAPI {
   readonly platform: PlatformInfo
+  workspaceGet(): Promise<{ root: string | null; language: 'en' | 'ru' }>
+  workspaceChoose(): Promise<{ root: string | null; language: 'en' | 'ru' } | null>
+  workspaceSetLanguage(language: 'en' | 'ru'): Promise<{ root: string | null; language: 'en' | 'ru' }>
   newProjectDialog(): Promise<{ folder: string; name: string } | null>
   openProjectDialog(): Promise<string | null>
   pickFile(filters: { name: string; extensions: string[] }[]): Promise<string | null>
@@ -95,6 +98,9 @@ const platform: PlatformInfo = {
 
 const api: BlockoutAPI = {
   platform,
+  workspaceGet: () => ipcRenderer.invoke('workspace:get'),
+  workspaceChoose: () => ipcRenderer.invoke('workspace:choose'),
+  workspaceSetLanguage: (language) => ipcRenderer.invoke('workspace:setLanguage', language),
   newProjectDialog: () => ipcRenderer.invoke('dialog:newProject'),
   openProjectDialog: () => ipcRenderer.invoke('dialog:openProject'),
   pickFile: (filters) => ipcRenderer.invoke('dialog:pickFile', filters),
