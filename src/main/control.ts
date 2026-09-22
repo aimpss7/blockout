@@ -43,7 +43,7 @@ const CONTROL_CAPABILITIES = [
 // Per-action timeouts: rendering/exporting legitimately take longer.
 function timeoutForAction(action: string): number {
   if (action === 'export_shot') return 600_000
-  if (action === 'screenshot' || action === 'review_shot') return 120_000
+  if (action === 'screenshot' || action === 'review_shot' || action === 'save_visual_checkpoint') return 120_000
   return 30_000
 }
 
