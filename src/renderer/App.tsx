@@ -4,7 +4,7 @@
  * Stage/Shoot/Deliver layouts, global keyboard map, and autosave.
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { useStore, currentProjectJson } from './store'
 import { Viewport } from './viewport/Viewport'
 import { Library } from './panels/Library'
@@ -19,6 +19,11 @@ import { DISTRIBUTION } from '../shared/distribution'
 import { uiText, type UiLanguage } from './i18n'
 
 const PLATFORM_CLASS = `platform-${window.blockout.platform.platform}`
+
+const LanguageContext = createContext<UiLanguage>('en')
+export function useUiLanguage(): UiLanguage {
+  return useContext(LanguageContext)
+}
 
 function CreditLink({ url, children }: { url: string; children: string }): JSX.Element {
   return (
@@ -279,6 +284,7 @@ export function App(): JSX.Element {
 
   if (!doc) {
     return (
+      <LanguageContext.Provider value={language}>
       <div className={`app ${PLATFORM_CLASS}`}>
         <div className="titlebar">
           <span className="app-name">BLOCKOUT</span>
@@ -287,6 +293,7 @@ export function App(): JSX.Element {
         <Toasts />
         <HelpOverlay />
       </div>
+    </LanguageContext.Provider>
     )
   }
 
@@ -393,5 +400,6 @@ export function App(): JSX.Element {
         </div>
       )}
     </div>
+    </LanguageContext.Provider>
   )
 }
