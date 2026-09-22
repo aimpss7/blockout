@@ -300,23 +300,23 @@ export function App(): JSX.Element {
         </span>
         <div className="mode-switch">
           <button className={mode === 'stage' ? 'active' : ''} onClick={() => setMode('stage')}>
-            STAGE
+            {uiText(language, 'stage')}
           </button>
           <button className={mode === 'shoot' ? 'active' : ''} onClick={() => setMode('shoot')}>
-            SHOOT
+            {uiText(language, 'shoot')}
           </button>
           <button className={mode === 'deliver' ? 'active' : ''} onClick={() => setMode('deliver')}>
-            DELIVER
+            {uiText(language, 'deliver')}
           </button>
         </div>
         <button className="btn small" onClick={onSave}>
-          Save
+          {uiText(language, 'save')}
         </button>
         <button className="btn small" onClick={onSnapshot} title="Save a timestamped project checkpoint">
-          Checkpoint
+          {uiText(language, 'checkpoint')}
         </button>
         <button className="btn small" onClick={openHistory} title="Browse project checkpoints">
-          History
+          {uiText(language, 'history')}
         </button>
         <select
           className="language-select"
