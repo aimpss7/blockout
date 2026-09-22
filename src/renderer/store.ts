@@ -494,7 +494,7 @@ export const useStore = create<BlockoutState>((set, get) => ({
         // without re-reading the entire document.
         void window.blockout.appendHistoryEvent(folder, {
           type: 'mutation',
-          source: label.startsWith('agent:') ? 'agent' : 'human',
+          source: label.startsWith('agent:') ? 'agent' : label.startsWith('ui:') ? 'human' : 'human',
           label,
           sceneId: get().sceneId,
           shotId: get().shotId
@@ -517,6 +517,14 @@ export const useStore = create<BlockoutState>((set, get) => ({
     const prev = undoStack[undoStack.length - 1]!
     const { doc: restored } = parseProject(prev)
     if (!restored) return
+    const folder = get().projectFolder
+    if (folder) void window.blockout.appendHistoryEvent(folder, {
+      type: 'undo',
+      source: 'human',
+      label: 'undo',
+      sceneId,
+      shotId
+    })
     set({
       doc: restored,
       undoStack: undoStack.slice(0, -1),
@@ -536,6 +544,14 @@ export const useStore = create<BlockoutState>((set, get) => ({
     const next = redoStack[redoStack.length - 1]!
     const { doc: restored } = parseProject(next)
     if (!restored) return
+    const folder = get().projectFolder
+    if (folder) void window.blockout.appendHistoryEvent(folder, {
+      type: 'redo',
+      source: 'human',
+      label: 'redo',
+      sceneId,
+      shotId
+    })
     set({
       doc: restored,
       redoStack: redoStack.slice(0, -1),
