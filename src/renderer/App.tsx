@@ -16,6 +16,7 @@ import { Toasts } from './panels/Toasts'
 import { HelpOverlay, BlockingCoach } from './panels/Help'
 import logoUrl from './assets/logo.png'
 import { DISTRIBUTION } from '../shared/distribution'
+import { uiText, type UiLanguage } from './i18n'
 
 const PLATFORM_CLASS = `platform-${window.blockout.platform.platform}`
 
@@ -68,7 +69,7 @@ export function Credits({ compact = false }: { compact?: boolean }): JSX.Element
   )
 }
 
-function Welcome(): JSX.Element {
+function Welcome({ language }: { language: UiLanguage }): JSX.Element {
   const newProject = useStore((s) => s.newProject)
   const [workspace, setWorkspace] = useState<string | null>(null)
 
@@ -126,11 +127,11 @@ function Welcome(): JSX.Element {
           Open Project…
         </button>
         <button className="btn" onClick={() => useStore.getState().setHelpOpen(true)}>
-          ? Tutorial
+          ? {uiText(language, 'tutorial')}
         </button>
       </div>
       <div style={{ marginTop: 18, color: 'var(--text-faint)', fontSize: 11, textAlign: 'center' }}>
-        <div>{workspace ? `Workspace: ${workspace}` : 'Workspace not selected yet'}</div>
+        <div>{workspace ? `${uiText(language, 'workspace')}: ${workspace}` : uiText(language, 'workspaceMissing')}</div>
         <button
           className="btn small"
           style={{ marginTop: 6 }}
@@ -140,7 +141,7 @@ function Welcome(): JSX.Element {
             })
           }
         >
-          Change Workspace…
+          {uiText(language, 'changeWorkspace')}
         </button>
       </div>
       <Credits />
@@ -282,7 +283,7 @@ export function App(): JSX.Element {
         <div className="titlebar">
           <span className="app-name">BLOCKOUT</span>
         </div>
-        <Welcome />
+        <Welcome language={language} />
         <Toasts />
         <HelpOverlay />
       </div>
@@ -320,7 +321,7 @@ export function App(): JSX.Element {
         <select
           className="language-select"
           value={language}
-          title="Interface language"
+          title={uiText(language, 'interfaceLanguage')}
           onChange={(e) => {
             const next = e.target.value === 'ru' ? 'ru' : 'en'
             setLanguage(next)
@@ -335,7 +336,7 @@ export function App(): JSX.Element {
           title="Help: quick start, how-do-I answers, shortcuts (?)"
           onClick={() => useStore.getState().setHelpOpen(true)}
         >
-          ? Help
+          ? {uiText(language, 'help')}
         </button>
       </div>
 
@@ -371,11 +372,11 @@ export function App(): JSX.Element {
         <div className="help-backdrop" onMouseDown={() => setHistoryOpen(false)}>
           <div className="history-modal" onMouseDown={(e) => e.stopPropagation()}>
             <div className="history-header">
-              <b>Project checkpoints</b>
-              <button className="btn small" onClick={() => setHistoryOpen(false)}>Close</button>
+              <b>{uiText(language, 'projectCheckpoints')}</b>
+              <button className="btn small" onClick={() => setHistoryOpen(false)}>{uiText(language, 'close')}</button>
             </div>
             <div className="history-list">
-              {snapshots.length === 0 && <div className="history-empty">No checkpoints yet.</div>}
+              {snapshots.length === 0 && <div className="history-empty">{uiText(language, 'noCheckpoints')}</div>}
               {snapshots.map((item) => (
                 <div className="history-item" key={item.path}>
                   <div>
@@ -384,7 +385,7 @@ export function App(): JSX.Element {
                       {new Date(item.savedAt).toLocaleString()} · {Math.max(1, Math.round(item.bytes / 1024))} KB
                     </div>
                   </div>
-                  <button className="btn small" onClick={() => void restoreSnapshot(item.path)}>Restore</button>
+                  <button className="btn small" onClick={() => void restoreSnapshot(item.path)}>{uiText(language, 'restore')}</button>
                 </div>
               ))}
             </div>
