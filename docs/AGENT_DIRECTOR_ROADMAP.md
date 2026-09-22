@@ -192,3 +192,45 @@ For every major change:
 Base new work on the current `wassermanproductions/blockout`. Useful fork ideas
 are reimplemented against the current architecture instead of wholesale
 cherry-picking stale forks. Preserve Apache-2.0 NOTICE/attribution.
+
+
+## Workspace + Visual Memory
+
+The project folder is the durable source of truth. New projects scaffold:
+
+```
+<project>.blockout/
+  project.json
+  assets/
+  refs/
+  exports/
+  history/
+    events.jsonl
+    snapshots/
+  reviews/
+    cache/
+    dailies/
+    hero/
+```
+
+Manual saves append a compact timestamped event to `history/events.jsonl`.
+The intended next step is a workspace-root picker (Obsidian-style vault) that
+creates project folders beneath one persistent root.
+
+### Phase boards for vision agents
+
+Animation review is not modeled as a pile of independent screenshots. Blockout
+uses a single sequential **phase board / contact sheet** so ChatGPT or another
+vision agent can infer motion from ordered poses and camera states.
+
+- `review_shot`: temporary PNG review board returned directly to the agent.
+- `save_visual_checkpoint`: durable WebP board + JSON sidecar.
+- boards preserve first/last, camera beats and hero-frame priority, while also
+  adding uniform animation phases for temporal readability.
+- durable boards default to compact WebP (~76 quality) rather than PNG.
+- `reviews/dailies`: iterative checkpoints.
+- `reviews/hero`: approved/important visual checkpoints.
+- `reviews/cache`: reserved for disposable automatic review artifacts.
+
+This is intentionally optimized for multimodal LLM review: one image carries
+the temporal story of the shot without N screenshot tool calls.
