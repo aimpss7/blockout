@@ -88,6 +88,8 @@ export interface Entity {
   transform: Transform
   /** Per-asset parameters (height/build sliders, color variants). */
   params?: Record<string, number | string>
+  /** Simple matte viewport/export color. Independent from label/path color. */
+  color?: string
   /** For custom imports: path relative to project assets/ dir. */
   sourceFile?: string
   /**
