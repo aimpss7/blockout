@@ -99,6 +99,22 @@ describe('schema round-trip', () => {
     expect(issues.some((i) => i.message.includes('blocking take'))).toBe(true)
   })
 
+  it('rejects invalid camera/project invariants at load boundaries', () => {
+    const doc = createProject('Bad camera')
+    const raw = JSON.parse(serializeProject(doc)) as any
+    raw.scenes[0].shots[0].aspect = '5:7'
+    raw.scenes[0].shots[0].camera.sensorId = 'phone'
+    raw.scenes[0].shots[0].camera.rig = 'magic'
+    raw.scenes[0].shots[0].camera.marks = [
+      { id: 'c1', time: 0, hold: 0, easeIn: 0, easeOut: 0, position: { x: 0, y: 1, z: 1 }, pan: 0, tilt: 0, roll: 0, focalLength: 500 }
+    ]
+    const issues = validateProject(raw)
+    expect(issues.some((issue) => issue.path.endsWith('.aspect'))).toBe(true)
+    expect(issues.some((issue) => issue.path.endsWith('.sensorId'))).toBe(true)
+    expect(issues.some((issue) => issue.path.endsWith('.rig'))).toBe(true)
+    expect(issues.some((issue) => issue.path.includes('focalLength'))).toBe(true)
+  })
+
   it('new scenes come with a master take and one shot', () => {
     const scene = createScene(3)
     expect(scene.blocking.length).toBe(1)
