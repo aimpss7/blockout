@@ -34,6 +34,7 @@ export function DeliverPanel(): JSX.Element {
   const [passes, setPasses] = useState({ clean: true, depth: false, normal: false })
   const [labels, setLabels] = useState<'on' | 'stillsOnly' | 'off'>('stillsOnly')
   const [resolution, setResolution] = useState<ExportResolution>('auto')
+  const [reviews, setReviews] = useState<{ kind: 'daily' | 'hero'; name: string; path: string; savedAt: string; bytes: number }[]>([])
 
   const profile = getProfile(profileId)
   const prompt = useMemo(
@@ -231,6 +232,39 @@ export function DeliverPanel(): JSX.Element {
       >
         Copy prompt
       </button>
+
+      <div className="panel-title">Visual Memory</div>
+      <p style={{ color: 'var(--text-faint)', fontSize: 11, lineHeight: 1.45, marginBottom: 8 }}>
+        Phase boards pack the important animation phases into one compact WebP for ChatGPT/agent review.
+      </p>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+        <button
+          className="btn"
+          style={{ flex: 1 }}
+          onClick={() =>
+            void window.blockout.listReviewArtifacts(useStore.getState().projectFolder ?? '').then(setReviews)
+          }
+        >
+          Refresh Dailies
+        </button>
+        <button
+          className="btn"
+          style={{ flex: 1 }}
+          onClick={() => {
+            const folder = useStore.getState().projectFolder
+            if (folder) void window.blockout.showFolder(`${folder}/reviews`)
+          }}
+        >
+          Open Reviews
+        </button>
+      </div>
+      {reviews.slice(0, 6).map((item) => (
+        <div className="visual-memory-row" key={item.path}>
+          <span className={`visual-memory-kind ${item.kind}`}>{item.kind === 'hero' ? 'HERO' : 'DAILY'}</span>
+          <span className="visual-memory-name">{item.name}</span>
+          <span className="visual-memory-size">{Math.max(1, Math.round(item.bytes / 1024))} KB</span>
+        </div>
+      ))}
 
       <div className="panel-title">Scene tools</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
