@@ -462,7 +462,11 @@ export async function executeControlAction(action: string, params: Params = {}):
         title: `${scene.name} / ${shot.name}`,
         intent: shot.director?.intent,
         cameraRecipeId: shot.director?.cameraRecipeId,
-        cameraSubjectKey: shot.camera.trackEntityId ? keyById[shot.camera.trackEntityId] : undefined,
+        cameraSubjectKey: shot.director?.cameraSubjectEntityId
+          ? keyById[shot.director.cameraSubjectEntityId]
+          : shot.camera.trackEntityId
+            ? keyById[shot.camera.trackEntityId]
+            : undefined,
         heroFrameTime: shot.director?.heroFrameTime,
         lighting: scene.environment.lighting,
         entities,
@@ -881,6 +885,7 @@ export async function executeControlAction(action: string, params: Params = {}):
           ...sh.director,
           intent: recipe.intent,
           cameraRecipeId: recipe.id,
+          cameraSubjectEntityId: subjectId,
           heroFrameApproved: false
         }
       })
