@@ -1671,6 +1671,13 @@ function CameraInspector({ scene, shot }: { scene: Scene; shot: Shot }): JSX.Ele
       <DirectorApprovalSection scene={scene} shot={shot} />
 
       <div className="panel-section">
+        <div className="panel-title">Director files</div>
+        <p style={{ color: 'var(--text-faint)', fontSize: 11, lineHeight: 1.4 }}>
+          Portable .shot.json uses the same Director Schema as ChatGPT, Codex and Tunnel.
+        </p>
+      </div>
+
+      <div className="panel-section">
         <div className="panel-title">Camera</div>
         <div className="field">
           <label>Sensor</label>
