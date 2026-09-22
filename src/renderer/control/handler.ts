@@ -21,7 +21,7 @@ import { CAMERA_MOVE_PRESETS } from '@engine/camera-moves'
 import { BUILTIN_PROFILES } from '@engine/profiles'
 import { ShotEvaluator } from '@engine/evaluate'
 import { motionPrevisToCameraSpecs, validateMotionPrevisCameraData } from '@engine/motion-previs'
-import { validateShotPlan } from '@engine/shot-plan'
+import { validateShotPlan, shotPlanExample } from '@engine/shot-plan'
 
 type Params = Record<string, unknown>
 type ControlResult = { ok: boolean; data?: unknown; error?: string }
@@ -417,6 +417,85 @@ async function execute(action: string, params: Params): Promise<unknown> {
       s.setTime(0)
       s.setSelection(null)
       return { replaced: true, entities: entityIdsByKey, stateToken: currentStateToken() }
+    }
+
+    case 'export_shot_plan': {
+      requireDoc()
+      const folder = s.projectFolder
+      const scene = s.scene()
+      const shot = s.shot()
+      if (!folder || !scene || !shot) throw new Error('Open and save a project first.')
+      const take = scene.blocking.find((item) => item.id === shot.blockingTakeId)
+      const entities = scene.entities.map((entity, index) => {
+        const track = take?.tracks.find((item) => item.entityId === entity.id)
+        return {
+          key: entity.label?.text?.toLowerCase().replace(/[^a-z0-9]+/g, '-') || `entity-${index + 1}`,
+          assetId: entity.assetId,
+          name: entity.name,
+          label: entity.label?.text,
+          x: entity.transform.position.x,
+          y: entity.transform.position.y,
+          z: entity.transform.position.z,
+          rotationDeg: toDeg(entity.transform.rotationY),
+          scale: entity.transform.scale,
+          params: entity.params,
+          marks: track?.marks.map((mark) => ({
+            time: mark.time,
+            x: mark.position.x,
+            y: mark.position.y,
+            z: mark.position.z,
+            gait: mark.gait,
+            hold: mark.hold,
+            easeIn: mark.easeIn,
+            easeOut: mark.easeOut,
+            headingDeg: mark.arriveHeading === undefined ? undefined : toDeg(mark.arriveHeading),
+            joints: mark.joints
+          }))
+        }
+      })
+      const keyById = Object.fromEntries(entities.map((item, index) => [scene.entities[index]!.id, item.key]))
+      const plan = validateShotPlan({
+        ...shotPlanExample(),
+        title: `${scene.name} / ${shot.name}`,
+        intent: shot.director?.intent,
+        cameraRecipeId: shot.director?.cameraRecipeId,
+        cameraSubjectKey: shot.camera.trackEntityId ? keyById[shot.camera.trackEntityId] : undefined,
+        heroFrameTime: shot.director?.heroFrameTime,
+        lighting: scene.environment.lighting,
+        entities,
+        shot: {
+          name: shot.name,
+          duration: shot.duration,
+          fps: shot.fps,
+          aspect: shot.aspect,
+          rig: shot.camera.rig,
+          notes: shot.notes,
+          trackEntityKey: shot.camera.trackEntityId ? keyById[shot.camera.trackEntityId] : undefined,
+          cameraMarks: shot.camera.marks.map((mark) => ({
+            time: mark.time,
+            x: mark.position.x,
+            y: mark.position.y,
+            z: mark.position.z,
+            panDeg: toDeg(mark.pan),
+            tiltDeg: toDeg(mark.tilt),
+            rollDeg: toDeg(mark.roll),
+            focalLength: mark.focalLength,
+            focusDistance: mark.focusDistance,
+            hold: mark.hold,
+            easeIn: mark.easeIn,
+            easeOut: mark.easeOut
+          }))
+        },
+        provenance: {
+          source: str(params, 'source') ?? 'human',
+          createdAt: new Date().toISOString(),
+          note: str(params, 'note')
+        }
+      })
+      const safeName = `${scene.name}-${shot.name}`.replace(/[^a-zA-Z0-9_-]+/g, '-')
+      const path = `${folder}/exports/${safeName}.shot.json`
+      await window.blockout.exportWriteFile(path, JSON.stringify(plan, null, 2) + '\n')
+      return { exported: true, path, stateToken: currentStateToken() }
     }
 
     case 'import_shot_plan': {
