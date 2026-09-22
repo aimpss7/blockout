@@ -167,7 +167,7 @@ existing handoff proves insufficient.
 Only after real Seedance tests:
 
 - WASD/QE fly navigation;
-- RU/EN localization;
+- finish full RU/EN string coverage;
 - faster camera-mark editor;
 - reusable project-level Character / Location / Vehicle reference cards;
 - revision/checkpoint UI.
