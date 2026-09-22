@@ -11,7 +11,7 @@ import { useStore } from '../store'
 import { ASSET_CATALOG, assetSpec, entityHeight } from '@engine/assets'
 import { createActorMark, createCameraMark, createEntity } from '@engine/schema'
 import { newId } from '@engine/ids'
-import { exportShot, renderReviewSheetPng, renderStillPngForTest, type ExportResolution } from '../export/exporter'
+import { exportShot, renderReviewSheet, renderReviewSheetPng, renderStillPngForTest, type ExportResolution } from '../export/exporter'
 import { getSceneManager } from '../export/scene-access'
 import type { AspectId, GaitId, LightingPresetId, RigId } from '@engine/types'
 import type { ChoreoKind, FormationId, RoutineSpec } from '@engine/choreography'
@@ -1090,6 +1090,71 @@ async function execute(action: string, params: Params): Promise<unknown> {
         times,
         heroFrameTime: heroTime ?? null,
         heroFrameApproved: shot.director?.heroFrameApproved ?? false
+      }
+    }
+
+    case 'save_visual_checkpoint': {
+      requireDoc()
+      assertExpectedState(params, false)
+      const shot = s.shot()
+      const scene = s.scene()
+      const folder = s.projectFolder
+      if (!shot || !scene || !folder) throw new Error('Open and save a project first.')
+      const kindRaw = str(params, 'kind')
+      const kind = kindRaw === 'hero' || kindRaw === 'daily' ? kindRaw : 'daily'
+      const maxFrames = Math.min(12, Math.max(2, Math.round(flt(params, 'maxFrames') ?? 8)))
+      const heroTime = shot.director?.heroFrameTime
+      // Phase-board mode deliberately samples more densely than review_shot:
+      // enough sequential phases for a vision model to infer motion, while
+      // staying a single compact image rather than N screenshots.
+      const uniform = Array.from({ length: maxFrames }, (_, i) =>
+        maxFrames === 1 ? 0 : (shot.duration * i) / (maxFrames - 1)
+      )
+      const times = reviewTimes(
+        shot.duration,
+        shot.fps,
+        [...uniform, ...shot.camera.marks.map((mark) => mark.time)],
+        maxFrames,
+        heroTime === undefined ? [] : [heroTime]
+      )
+      const webp = await renderReviewSheet(times, 400, 225, 4, 'webp', 0.76)
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+      const safeShot = shot.name.replace(/[^a-zA-Z0-9_-]+/g, '-')
+      const dir = kind === 'hero' ? 'hero' : 'dailies'
+      const stem = `${stamp}-${safeShot}-phase-board`
+      const imagePath = `${folder}/reviews/${dir}/${stem}.webp`
+      const jsonPath = `${folder}/reviews/${dir}/${stem}.json`
+      await window.blockout.exportWriteFile(imagePath, webp)
+      await window.blockout.exportWriteFile(
+        jsonPath,
+        JSON.stringify(
+          {
+            schema: 1,
+            type: 'phase-board',
+            kind,
+            createdAt: new Date().toISOString(),
+            source: str(params, 'source') ?? 'chatgpt',
+            note: str(params, 'note') ?? '',
+            scene: { id: scene.id, name: scene.name },
+            shot: { id: shot.id, name: shot.name, duration: shot.duration },
+            times,
+            heroFrameTime: heroTime ?? null,
+            heroFrameApproved: shot.director?.heroFrameApproved ?? false,
+            stateToken: currentStateToken(),
+            image: `${stem}.webp`
+          },
+          null,
+          2
+        ) + '\n'
+      )
+      return {
+        saved: true,
+        kind,
+        imagePath,
+        jsonPath,
+        times,
+        bytes: webp.byteLength,
+        stateToken: currentStateToken()
       }
     }
 
