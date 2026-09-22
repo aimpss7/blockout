@@ -219,6 +219,21 @@ ipcMain.handle(
   }
 )
 
+ipcMain.handle('project:snapshot', async (_e, folder: string, json: string, reason: string) => {
+  const dir = join(folder, 'history', 'snapshots')
+  await mkdir(dir, { recursive: true })
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const safeReason = sanitizeName(reason || 'snapshot')
+  const path = join(dir, `${stamp}-${safeReason}.json`)
+  await writeFile(path, json, 'utf-8')
+  await writeFile(
+    join(folder, 'history', 'events.jsonl'),
+    JSON.stringify({ at: new Date().toISOString(), type: 'snapshot', source: 'system', reason, file: basename(path) }) + '\n',
+    { encoding: 'utf-8', flag: 'a' }
+  )
+  return { path }
+})
+
 ipcMain.handle('project:saveBackup', async (_e, folder: string, json: string) => {
   await mkdir(join(folder, '.autosave'), { recursive: true })
   await writeFile(join(folder, '.autosave', 'project.autosave.json'), json, 'utf-8')
