@@ -120,6 +120,9 @@ export function validateShotPlan(value: unknown): DirectorShotPlan {
     if (typeof entity.assetId !== 'string' || !entity.assetId.trim()) {
       throw new Error(`entities[${index}].assetId is required.`)
     }
+    if (entity.color !== undefined && (typeof entity.color !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(entity.color))) {
+      throw new Error(`entities[${index}].color must be #RRGGBB.`)
+    }
   }
   return value as DirectorShotPlan
 }
