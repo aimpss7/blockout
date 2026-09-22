@@ -18,8 +18,11 @@ import {
 } from '../export/exporter'
 import { exportGlb } from '../export/gltf'
 import { executeControlAction } from '../control/handler'
+import { useUiLanguage } from '../App'
+import { uiText } from '../i18n'
 
 export function DeliverPanel(): JSX.Element {
+  const language = useUiLanguage()
   const doc = useStore((s) => s.doc)
   const sceneId = useStore((s) => s.sceneId)
   const shotId = useStore((s) => s.shotId)
@@ -234,7 +237,7 @@ export function DeliverPanel(): JSX.Element {
         Copy prompt
       </button>
 
-      <div className="panel-title">References</div>
+      <div className="panel-title">{uiText(language, 'references')}</div>
       <p style={{ color: 'var(--text-faint)', fontSize: 11, lineHeight: 1.45, marginBottom: 8 }}>
         Keep identity/look references separate from motion. These roles are carried into the project and downstream handoff.
       </p>
@@ -295,7 +298,7 @@ export function DeliverPanel(): JSX.Element {
         </div>
       )}
 
-      <div className="panel-title">Visual Memory</div>
+      <div className="panel-title">{uiText(language, 'visualMemory')}</div>
       <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
         <button
           className="btn primary"
