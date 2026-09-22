@@ -69,38 +69,100 @@ app.on('window-all-closed', () => {
 
 /* --------------------------------- IPC ---------------------------------- */
 
+/* ------------------------------ workspace ------------------------------- */
+
+interface WorkspaceSettings {
+  root: string | null
+  language: 'en' | 'ru'
+}
+
+const workspaceSettingsPath = (): string => join(app.getPath('userData'), 'workspace.json')
+
+async function readWorkspaceSettings(): Promise<WorkspaceSettings> {
+  try {
+    const raw = JSON.parse(await readFile(workspaceSettingsPath(), 'utf-8')) as Partial<WorkspaceSettings>
+    return {
+      root: typeof raw.root === 'string' && raw.root ? raw.root : null,
+      language: raw.language === 'ru' ? 'ru' : 'en'
+    }
+  } catch {
+    return { root: null, language: 'en' }
+  }
+}
+
+async function writeWorkspaceSettings(settings: WorkspaceSettings): Promise<void> {
+  await mkdir(dirname(workspaceSettingsPath()), { recursive: true })
+  await writeFile(workspaceSettingsPath(), JSON.stringify(settings, null, 2) + '\n', 'utf-8')
+}
+
+async function ensureProjectLayout(folder: string): Promise<void> {
+  for (const rel of [
+    'assets',
+    'refs',
+    'exports',
+    'history/snapshots',
+    'reviews/cache',
+    'reviews/dailies',
+    'reviews/hero'
+  ]) {
+    await mkdir(join(folder, rel), { recursive: true })
+  }
+}
+
+ipcMain.handle('workspace:get', async () => readWorkspaceSettings())
+
+ipcMain.handle('workspace:choose', async () => {
+  if (!mainWindow) return null
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Choose Blockout Workspace',
+    properties: ['openDirectory', 'createDirectory'],
+    message: 'All Blockout project folders will live inside this workspace.'
+  })
+  if (result.canceled || result.filePaths.length === 0) return null
+  const settings = await readWorkspaceSettings()
+  settings.root = result.filePaths[0]!
+  await writeWorkspaceSettings(settings)
+  return settings
+})
+
+ipcMain.handle('workspace:setLanguage', async (_e, language: 'en' | 'ru') => {
+  const settings = await readWorkspaceSettings()
+  settings.language = language === 'ru' ? 'ru' : 'en'
+  await writeWorkspaceSettings(settings)
+  return settings
+})
+
 ipcMain.handle('dialog:newProject', async () => {
-  // Smoke-test hook: bypass the native dialog so CI can drive the app.
   if (process.env.BLOCKOUT_SMOKE_DIR) {
     const folder = join(process.env.BLOCKOUT_SMOKE_DIR, 'Smoke.blockout')
-    await mkdir(join(folder, 'assets'), { recursive: true })
-    await mkdir(join(folder, 'exports'), { recursive: true })
-    await mkdir(join(folder, 'refs'), { recursive: true })
-    await mkdir(join(folder, 'reviews', 'cache'), { recursive: true })
-    await mkdir(join(folder, 'reviews', 'dailies'), { recursive: true })
-    await mkdir(join(folder, 'reviews', 'hero'), { recursive: true })
-    await mkdir(join(folder, 'history', 'snapshots'), { recursive: true })
+    await ensureProjectLayout(folder)
     return { folder, name: 'Smoke' }
   }
   if (!mainWindow) return null
+  const settings = await readWorkspaceSettings()
+  let root = settings.root
+  if (!root) {
+    const picked = await dialog.showOpenDialog(mainWindow, {
+      title: 'Choose Blockout Workspace',
+      properties: ['openDirectory', 'createDirectory'],
+      message: 'Choose one folder that will contain all Blockout projects.'
+    })
+    if (picked.canceled || picked.filePaths.length === 0) return null
+    root = picked.filePaths[0]!
+    settings.root = root
+    await writeWorkspaceSettings(settings)
+  }
   const result = await dialog.showSaveDialog(mainWindow, {
     title: 'Create Blockout Project',
     buttonLabel: 'Create',
     nameFieldLabel: 'Project name',
-    defaultPath: join(app.getPath('documents'), 'Untitled.blockout')
+    defaultPath: join(root, 'Untitled.blockout')
   })
   if (result.canceled || !result.filePath) return null
   const withoutExtension = result.filePath.replace(/\.blockout$/i, '')
   const name = sanitizeName(basename(withoutExtension))
-  const folder = join(dirname(withoutExtension), `${name}.blockout`)
-  await mkdir(folder, { recursive: true })
-  await mkdir(join(folder, 'assets'), { recursive: true })
-  await mkdir(join(folder, 'exports'), { recursive: true })
-  await mkdir(join(folder, 'refs'), { recursive: true })
-  await mkdir(join(folder, 'reviews', 'cache'), { recursive: true })
-  await mkdir(join(folder, 'reviews', 'dailies'), { recursive: true })
-  await mkdir(join(folder, 'reviews', 'hero'), { recursive: true })
-  await mkdir(join(folder, 'history', 'snapshots'), { recursive: true })
+  const folder = join(root, `${name}.blockout`)
+  await ensureProjectLayout(folder)
   return { folder, name }
 })
 
