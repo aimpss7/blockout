@@ -121,10 +121,10 @@ function Welcome({ language }: { language: UiLanguage }): JSX.Element {
       </p>
       <div className="actions">
         <button className="btn primary" onClick={onNew}>
-          New Project
+          {uiText(language, 'newProject')}
         </button>
         <button className="btn" onClick={onOpen}>
-          Open Project…
+          {uiText(language, 'openProject')}
         </button>
         <button className="btn" onClick={() => useStore.getState().setHelpOpen(true)}>
           ? {uiText(language, 'tutorial')}
