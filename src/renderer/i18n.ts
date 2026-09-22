@@ -26,7 +26,13 @@ export const EN = {
   sensor: 'Sensor',
   heroFrame: 'Hero Frame',
   references: 'References',
-  visualMemory: 'Visual Memory'
+  visualMemory: 'Visual Memory',
+  projectCheckpoints: 'Project checkpoints',
+  close: 'Close',
+  restore: 'Restore',
+  noCheckpoints: 'No checkpoints yet.',
+  workspaceMissing: 'Workspace not selected yet',
+  interfaceLanguage: 'Interface language'
 } as const
 
 export const RU: Record<keyof typeof EN, string> = {
@@ -49,7 +55,13 @@ export const RU: Record<keyof typeof EN, string> = {
   sensor: 'Сенсор',
   heroFrame: 'Ключевой кадр',
   references: 'Референсы',
-  visualMemory: 'Визуальная история'
+  visualMemory: 'Визуальная история',
+  projectCheckpoints: 'Контрольные точки проекта',
+  close: 'Закрыть',
+  restore: 'Восстановить',
+  noCheckpoints: 'Контрольных точек пока нет.',
+  workspaceMissing: 'Хранилище ещё не выбрано',
+  interfaceLanguage: 'Язык интерфейса'
 }
 
 export type UiKey = keyof typeof EN
