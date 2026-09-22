@@ -94,6 +94,7 @@ const TOOLS = [
               z: { type: 'number' },
               rotationDeg: { type: 'number' },
               scale: { type: 'number', description: 'Uniform entity scale.' },
+              color: { type: 'string', description: 'Optional simple matte object color as #RRGGBB.' },
               params: {
                 type: 'object',
                 description: 'Asset parameters. Primitives: cube/ramp/wall width,height,depth; cylinder radius,height; stairs width,height,depth,steps.',
@@ -218,6 +219,7 @@ const TOOLS = [
               z: { type: 'number' },
               rotationDeg: { type: 'number' },
               scale: { type: 'number', description: 'Uniform entity scale.' },
+              color: { type: 'string', description: 'Optional simple matte object color as #RRGGBB.' },
               params: {
                 type: 'object',
                 description: 'Asset parameters. Primitives: cube/ramp/wall width,height,depth; cylinder radius,height; stairs width,height,depth,steps.',
