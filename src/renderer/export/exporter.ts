@@ -185,6 +185,7 @@ function buildMetadata(scene: Scene, shot: Shot, profile: GeneratorProfile): str
         name: entity?.label?.text || entity?.name || track.entityId,
         asset: entity?.assetId,
         labelColor: entity?.label?.color ?? null,
+        baseColor: entity?.color ?? null,
         marks: [...track.marks]
           .sort((a, b) => a.time - b.time)
           .map((m, i) => ({
