@@ -76,6 +76,10 @@ function asParams(value: unknown, label: string): Params {
   return value as Params
 }
 
+function mutationPrefix(params: Params): 'ui' | 'agent' {
+  return str(params, '_historySource') === 'human' ? 'ui' : 'agent'
+}
+
 function bufferToBase64(buffer: ArrayBuffer): string {
   let binary = ''
   const bytes = new Uint8Array(buffer)
@@ -378,7 +382,7 @@ export async function executeControlAction(action: string, params: Params = {}):
 
       const entityIdsByKey = Object.fromEntries(built.map((item) => [item.key, item.entity.id]))
       let replaced = false
-      s.mutate('agent: replace scene blueprint', (doc) => {
+      s.mutate(`${mutationPrefix(params)}: replace scene blueprint`, (doc) => {
         const scene = doc.scenes.find((sc) => sc.id === useStore.getState().sceneId)
         const shot = scene?.shots.find((sh) => sh.id === useStore.getState().shotId)
         const take = scene?.blocking.find((b) => b.id === shot?.blockingTakeId)
@@ -530,7 +534,8 @@ export async function executeControlAction(action: string, params: Params = {}):
         heroFrameTime: plan.heroFrameTime,
         lighting: plan.lighting,
         entities: plan.entities,
-        shot: plan.shot
+        shot: plan.shot,
+        _historySource: str(params, '_historySource')
       })
       void window.blockout.appendHistoryEvent(folder, {
         type: 'shot-plan-import',
@@ -563,7 +568,8 @@ export async function executeControlAction(action: string, params: Params = {}):
         const applied = (await executeControlAction('apply_camera_recipe', {
           _expectedStateToken: stateToken,
           recipeId,
-          entityId
+          entityId,
+          _historySource: str(params, '_historySource')
         })) as { applied: string; stateToken: string }
         appliedRecipe = applied.applied
         stateToken = applied.stateToken
@@ -573,7 +579,7 @@ export async function executeControlAction(action: string, params: Params = {}):
       const heroFrameTime = flt(params, 'heroFrameTime')
       if (intent !== undefined || heroFrameTime !== undefined) {
         assertExpectedState({ _expectedStateToken: stateToken })
-        s.mutate('agent: director shot metadata', (doc) => {
+        s.mutate(`${mutationPrefix(params)}: director shot metadata`, (doc) => {
           const scene = doc.scenes.find((sc) => sc.id === useStore.getState().sceneId)
           const shot = scene?.shots.find((sh) => sh.id === useStore.getState().shotId)
           if (!shot) return
@@ -875,7 +881,7 @@ export async function executeControlAction(action: string, params: Params = {}):
           recipe.defaultLens !== null && !locks?.lens ? recipe.defaultLens : spec.focalLength
       }))
 
-      s.mutate('agent: camera recipe', (doc) => {
+      s.mutate(`${mutationPrefix(params)}: camera recipe`, (doc) => {
         const sc = doc.scenes.find((item) => item.id === useStore.getState().sceneId)
         const sh = sc?.shots.find((item) => item.id === useStore.getState().shotId)
         if (!sh) return
