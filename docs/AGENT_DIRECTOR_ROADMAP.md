@@ -93,7 +93,12 @@ Still to do:
 
 ## Phase 3 — operator layer
 
-Expand camera recipes from a small execution vocabulary into structured
+In progress. The camera vocabulary now carries structured `shotSize`,
+`height`, `useCase`, lens and pacing metadata, with dedicated product,
+vehicle, dialogue, observational and action recipes. The Camera panel groups
+recipes by purpose and also supports arbitrary 8–300mm focal lengths.
+
+Continue expanding camera recipes from a small execution vocabulary into structured
 directing recipes:
 
 ```yaml
