@@ -78,7 +78,7 @@ Headless/dialog-free driving: launch with env `BLOCKOUT_SMOKE_DIR=/some/dir` —
 ## Agent control (MCP)
 
 **Fork-specific director mode.** The MCP bridge now exposes a compact tool set by
-default: `get_state`, `list_assets`, `compile_shot`, `list_camera_recipes`,
+default: `get_state`, `get_recent_changes`, `list_assets`, `compile_shot`, `list_camera_recipes`,
 `apply_camera_recipe`, `review_shot`, `approve_hero_frame`,
 `set_human_locks`, `save_visual_checkpoint`, `export_shot`, `import_shot_plan`, `export_shot_plan`, `import_motion_previs_camera`, and `set_reference`. This is intentional: keep the agent on a
 high-level directing surface and minimize tool-schema/context cost. Set
