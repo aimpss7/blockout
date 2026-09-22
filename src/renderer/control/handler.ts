@@ -21,6 +21,7 @@ import { CAMERA_MOVE_PRESETS } from '@engine/camera-moves'
 import { BUILTIN_PROFILES } from '@engine/profiles'
 import { ShotEvaluator } from '@engine/evaluate'
 import { motionPrevisToCameraSpecs, validateMotionPrevisCameraData } from '@engine/motion-previs'
+import { validateShotPlan } from '@engine/shot-plan'
 
 type Params = Record<string, unknown>
 type ControlResult = { ok: boolean; data?: unknown; error?: string }
@@ -416,6 +417,42 @@ async function execute(action: string, params: Params): Promise<unknown> {
       s.setTime(0)
       s.setSelection(null)
       return { replaced: true, entities: entityIdsByKey, stateToken: currentStateToken() }
+    }
+
+    case 'import_shot_plan': {
+      requireDoc()
+      assertExpectedState(params)
+      const filePath = str(params, 'filePath') ?? ''
+      if (!filePath) throw new Error('filePath is required.')
+      const folder = s.projectFolder
+      if (!folder) throw new Error('Open and save a project first.')
+      const imported = await window.blockout.importReference(folder, filePath)
+      const bytes = await window.blockout.readProjectFile(folder, imported.relativePath)
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(new TextDecoder().decode(new Uint8Array(bytes)))
+      } catch {
+        throw new Error('Shot Plan is not valid JSON.')
+      }
+      const plan = validateShotPlan(parsed)
+      const compiled = await execute('compile_shot', {
+        _expectedStateToken: currentStateToken(),
+        intent: plan.intent,
+        cameraRecipeId: plan.cameraRecipeId,
+        cameraSubjectKey: plan.cameraSubjectKey,
+        heroFrameTime: plan.heroFrameTime,
+        lighting: plan.lighting,
+        entities: plan.entities,
+        shot: plan.shot
+      })
+      void window.blockout.appendHistoryEvent(folder, {
+        type: 'shot-plan-import',
+        source: plan.provenance?.source ?? 'import',
+        label: plan.title ?? imported.name,
+        sceneId: useStore.getState().sceneId,
+        shotId: useStore.getState().shotId
+      })
+      return { imported: imported.relativePath, planTitle: plan.title ?? null, compiled }
     }
 
     case 'compile_shot': {
