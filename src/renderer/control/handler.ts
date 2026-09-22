@@ -18,7 +18,7 @@ import type { ChoreoKind, FormationId, RoutineSpec } from '@engine/choreography'
 import type { FramingKind } from '../bus'
 import { CAMERA_RECIPES, directorStateToken, getCameraRecipe, reviewTimes } from '@engine/director'
 import { CAMERA_MOVE_PRESETS } from '@engine/camera-moves'
-import { BUILTIN_PROFILES } from '@engine/profiles'
+import { BUILTIN_PROFILES, profileSupportsAspect } from '@engine/profiles'
 import { ShotEvaluator } from '@engine/evaluate'
 import { motionPrevisToCameraSpecs, validateMotionPrevisCameraData } from '@engine/motion-previs'
 import { validateShotPlan, shotPlanExample } from '@engine/shot-plan'
@@ -1304,6 +1304,12 @@ export async function executeControlAction(action: string, params: Params = {}):
       const profileId = str(params, 'profileId') ?? s.doc?.settings.defaultProfileId ?? 'seedance-2.5'
       if (!BUILTIN_PROFILES.some((profile) => profile.id === profileId)) {
         throw new Error(`Unknown profileId "${profileId}".`)
+      }
+      const targetProfile = BUILTIN_PROFILES.find((profile) => profile.id === profileId)!
+      if (!profileSupportsAspect(targetProfile, s.shot()!.aspect) && bool(params, 'allowUnsupportedAspect') !== true) {
+        throw new Error(
+          `${targetProfile.name} does not declare support for ${s.shot()!.aspect}. Set allowUnsupportedAspect=true only if intentional.`
+        )
       }
       const requireApprovedHeroFrame =
         bool(params, 'requireApprovedHeroFrame') ?? profileId === 'seedance-2.5'
