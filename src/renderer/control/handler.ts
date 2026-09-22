@@ -1274,6 +1274,27 @@ async function execute(action: string, params: Params): Promise<unknown> {
       }
     }
 
+    case 'ui_import_shot_plan': {
+      requireDoc()
+      const filePath = await window.blockout.pickFile([{ name: 'Blockout Shot Plan', extensions: ['json'] }])
+      if (!filePath) return { cancelled: true }
+      return execute('import_shot_plan', { _expectedStateToken: currentStateToken(), filePath })
+    }
+
+    case 'ui_export_shot_plan': {
+      return execute('export_shot_plan', { source: 'human' })
+    }
+
+    case 'ui_save_visual_checkpoint': {
+      return execute('save_visual_checkpoint', {
+        _expectedStateToken: currentStateToken(),
+        kind: str(params, 'kind') ?? 'daily',
+        maxFrames: flt(params, 'maxFrames') ?? 8,
+        source: 'human',
+        note: str(params, 'note') ?? ''
+      })
+    }
+
     case 'export_shot': {
       requireDoc()
       assertExpectedState(params, false)
