@@ -226,11 +226,13 @@ export async function renderStillPngForTest(t: number, width = 320, height = 180
  * contact sheet. This replaces repeated screenshot tool calls and therefore
  * keeps both latency and LLM context use low.
  */
-export async function renderReviewSheetPng(
+export async function renderReviewSheet(
   times: number[],
   cellWidth = 480,
   cellHeight = 270,
-  columns = 3
+  columns = 3,
+  format: 'png' | 'webp' = 'png',
+  quality = 0.78
 ): Promise<ArrayBuffer> {
   const s = useStore.getState()
   const shot = s.shot()
@@ -272,14 +274,27 @@ export async function renderReviewSheetPng(
       ctx.drawImage(canvas, x + Math.floor((cellWidth - tw) / 2), y + Math.floor((cellHeight - th) / 2))
       ctx.fillStyle = '#ececf1'
       ctx.font = '600 15px -apple-system, sans-serif'
-      ctx.fillText(`${shot.name} · t=${t.toFixed(2)}s`, x, y + cellHeight + 21)
+      ctx.fillText(`${shot.name} · phase ${i + 1}/${safeTimes.length} · t=${t.toFixed(2)}s`, x, y + cellHeight + 21)
     }
-    const blob = await new Promise<Blob | null>((resolve) => sheet.toBlob(resolve, 'image/png'))
-    if (!blob) throw new Error('PNG encode failed')
+    const mime = format === 'webp' ? 'image/webp' : 'image/png'
+    const blob = await new Promise<Blob | null>((resolve) =>
+      sheet.toBlob(resolve, mime, format === 'webp' ? quality : undefined)
+    )
+    if (!blob) throw new Error(`${format.toUpperCase()} encode failed`)
     return blob.arrayBuffer()
   } finally {
     manager.suspendLive = false
   }
+}
+
+/** Backward-compatible deterministic PNG review sheet. */
+export async function renderReviewSheetPng(
+  times: number[],
+  cellWidth = 480,
+  cellHeight = 270,
+  columns = 3
+): Promise<ArrayBuffer> {
+  return renderReviewSheet(times, cellWidth, cellHeight, columns, 'png')
 }
 
 /** Raw-pixel variant for the determinism diagnostic. */
