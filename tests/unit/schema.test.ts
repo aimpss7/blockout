@@ -34,7 +34,7 @@ describe('schema round-trip', () => {
     const doc = createProject('Stable')
     const a = serializeProject(doc)
     // Shuffle top-level keys by rebuilding the object in a different order.
-    const shuffled = JSON.parse(JSON.stringify({ scenes: doc.scenes, version: doc.version, settings: doc.settings, name: doc.name, id: doc.id }))
+    const shuffled = JSON.parse(JSON.stringify({ scenes: doc.scenes, references: doc.references, version: doc.version, settings: doc.settings, name: doc.name, id: doc.id }))
     const b = serializeProject(shuffled)
     expect(a).toBe(b)
   })
@@ -70,6 +70,26 @@ describe('schema round-trip', () => {
       scale: 1,
       visible: true
     })
+  })
+
+  it('round-trips semantic references and rejects paths outside refs/', () => {
+    const doc = createProject('Refs')
+    doc.references = [
+      {
+        id: 'ref_1',
+        role: 'product',
+        name: 'Blue bottle',
+        relativePath: 'refs/bottle.webp',
+        createdAt: '2026-09-22T00:00:00.000Z'
+      }
+    ]
+    const parsed = parseProject(serializeProject(doc))
+    expect(parsed.issues).toEqual([])
+    expect(parsed.doc?.references).toEqual(doc.references)
+
+    const bad = JSON.parse(serializeProject(doc)) as any
+    bad.references[0].relativePath = '../outside.webp'
+    expect(validateProject(bad).some((issue) => issue.path.includes('relativePath'))).toBe(true)
   })
 
   it('flags a shot referencing a missing blocking take', () => {
