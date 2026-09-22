@@ -29,7 +29,8 @@ export interface BlockoutAPI {
   ): Promise<boolean>
   saveSnapshot(folder: string, json: string, reason: string): Promise<{ path: string }>
   listSnapshots(folder: string): Promise<{ name: string; path: string; savedAt: string; bytes: number }[]>
-  readTextFile(path: string): Promise<string>
+  readSnapshot(folder: string, path: string): Promise<string>
+  importPlan(folder: string, sourcePath: string): Promise<{ relativePath: string; name: string }>
   listReviewArtifacts(folder: string): Promise<{ kind: 'daily' | 'hero'; name: string; path: string; savedAt: string; bytes: number }[]>
   saveBackup(folder: string, json: string): Promise<boolean>
   loadProject(folder: string): Promise<{
@@ -116,7 +117,8 @@ const api: BlockoutAPI = {
   appendHistoryEvent: (folder, event) => ipcRenderer.invoke('project:historyEvent', folder, event),
   saveSnapshot: (folder, json, reason) => ipcRenderer.invoke('project:snapshot', folder, json, reason),
   listSnapshots: (folder) => ipcRenderer.invoke('project:listSnapshots', folder),
-  readTextFile: (path) => ipcRenderer.invoke('file:readText', path),
+  readSnapshot: (folder, path) => ipcRenderer.invoke('project:readSnapshot', folder, path),
+  importPlan: (folder, sourcePath) => ipcRenderer.invoke('project:importPlan', folder, sourcePath),
   listReviewArtifacts: (folder) => ipcRenderer.invoke('project:listReviews', folder),
   saveBackup: (folder, json) => ipcRenderer.invoke('project:saveBackup', folder, json),
   loadProject: (folder) => ipcRenderer.invoke('project:load', folder),
