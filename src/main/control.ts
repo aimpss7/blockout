@@ -33,6 +33,9 @@ const CONTROL_CAPABILITIES = [
   'agent-director-v1',
   'state-token',
   'review-shot',
+  'visual-checkpoints',
+  'shot-plan-v1',
+  'reference-cards',
   'export-shot',
   'motion-previs-camera-import'
 ] as const
