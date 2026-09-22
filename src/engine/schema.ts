@@ -132,6 +132,30 @@ export function validateProject(doc: unknown): ValidationIssue[] {
   const p = doc as Record<string, unknown>
   if (p.version !== 1) err('version', `unsupported schema version ${String(p.version)}`)
   if (typeof p.name !== 'string') err('name', 'missing project name')
+  if (p.references !== undefined) {
+    if (!Array.isArray(p.references)) {
+      err('references', 'must be an array')
+    } else {
+      const roles = new Set(['character', 'product', 'location', 'style', 'motion'])
+      ;(p.references as unknown[]).forEach((ref, i) => {
+        if (!ref || typeof ref !== 'object' || Array.isArray(ref)) {
+          err(`references[${i}]`, 'reference card is not an object')
+          return
+        }
+        const card = ref as Record<string, unknown>
+        if (typeof card.id !== 'string' || !card.id) err(`references[${i}].id`, 'missing id')
+        if (typeof card.name !== 'string' || !card.name) err(`references[${i}].name`, 'missing name')
+        if (typeof card.role !== 'string' || !roles.has(card.role)) err(`references[${i}].role`, 'unknown role')
+        if (
+          typeof card.relativePath !== 'string' ||
+          normalizeProjectRelativePath(card.relativePath) === null ||
+          !card.relativePath.replaceAll('\\', '/').startsWith('refs/')
+        ) {
+          err(`references[${i}].relativePath`, 'must be a relative path under refs/')
+        }
+      })
+    }
+  }
   if (!Array.isArray(p.scenes)) {
     err('scenes', 'missing scenes array')
     return issues
