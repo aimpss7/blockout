@@ -223,7 +223,7 @@ function routineSpecFromParams(params: Params): RoutineSpec {
   return spec
 }
 
-async function execute(action: string, params: Params): Promise<unknown> {
+export async function executeControlAction(action: string, params: Params = {}): Promise<unknown> {
   const s = useStore.getState()
   switch (action) {
     case 'get_state': {
@@ -514,7 +514,7 @@ async function execute(action: string, params: Params): Promise<unknown> {
         throw new Error('Shot Plan is not valid JSON.')
       }
       const plan = validateShotPlan(parsed)
-      const compiled = await execute('compile_shot', {
+      const compiled = await executeControlAction('compile_shot', {
         _expectedStateToken: currentStateToken(),
         intent: plan.intent,
         cameraRecipeId: plan.cameraRecipeId,
@@ -538,7 +538,7 @@ async function execute(action: string, params: Params): Promise<unknown> {
       requireDoc()
       // compile_shot is deliberately orchestration, not a second geometry engine:
       // one atomic blueprint, then the existing deterministic camera recipe.
-      const replaced = (await execute('replace_scene', params)) as {
+      const replaced = (await executeControlAction('replace_scene', params)) as {
         replaced: boolean
         entities: Record<string, string>
         stateToken: string
@@ -552,7 +552,7 @@ async function execute(action: string, params: Params): Promise<unknown> {
         if (subjectKey && !entityId) {
           throw new Error(`Unknown cameraSubjectKey "${subjectKey}".`)
         }
-        const applied = (await execute('apply_camera_recipe', {
+        const applied = (await executeControlAction('apply_camera_recipe', {
           _expectedStateToken: stateToken,
           recipeId,
           entityId
@@ -1479,7 +1479,7 @@ export function registerControlHandler(): () => void {
     void (async () => {
       let result: ControlResult
       try {
-        const data = await execute(action, (params ?? {}) as Params)
+        const data = await executeControlAction(action, (params ?? {}) as Params)
         result = { ok: true, data }
       } catch (e) {
         result = { ok: false, error: (e as Error).message }
