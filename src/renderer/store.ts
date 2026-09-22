@@ -23,6 +23,7 @@ import { newId } from '@engine/ids'
 import { generateSequence, choreographMotion } from '@engine/sequences'
 import { buildRoutine } from '@engine/choreography'
 import { ACTION_PRESETS } from '@engine/action-presets'
+import { heroApprovalFingerprint } from '@engine/director'
 
 export type Mode = 'stage' | 'shoot' | 'deliver'
 
@@ -452,8 +453,32 @@ export const useStore = create<BlockoutState>((set, get) => ({
       get().toast('Editing is locked while an export is running.', 'info')
       return
     }
+    const beforeHero = new Map<string, string>()
+    for (const scene of doc.scenes) {
+      for (const shot of [...scene.shots, ...(scene.drafts ?? [])]) {
+        if (shot.director?.heroFrameApproved) {
+          beforeHero.set(shot.id, heroApprovalFingerprint(scene, shot))
+        }
+      }
+    }
+
     const next = structuredClone(doc)
     fn(next)
+
+    // One central invalidation rule is safer than every UI/MCP path remembering
+    // to clear Hero approval. Any visual/timing change to an approved shot
+    // invalidates it automatically; pure metadata/lock edits do not.
+    if (label !== 'approve hero frame' && label !== 'agent: approve hero frame') {
+      for (const scene of next.scenes) {
+        for (const shot of [...scene.shots, ...(scene.drafts ?? [])]) {
+          const before = beforeHero.get(shot.id)
+          if (before && before !== heroApprovalFingerprint(scene, shot)) {
+            shot.director = { ...shot.director, heroFrameApproved: false }
+          }
+        }
+      }
+    }
+
     const now = Date.now()
     const coalesce = label === lastMutateLabel && now - lastMutateAt < COALESCE_MS
     lastMutateLabel = label
