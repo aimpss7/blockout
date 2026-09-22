@@ -202,6 +202,23 @@ ipcMain.handle('project:save', async (_e, folder: string, json: string) => {
   return true
 })
 
+ipcMain.handle(
+  'project:historyEvent',
+  async (
+    _e,
+    folder: string,
+    event: { type: string; source: string; label?: string; sceneId?: string | null; shotId?: string | null }
+  ) => {
+    await mkdir(join(folder, 'history'), { recursive: true })
+    await writeFile(
+      join(folder, 'history', 'events.jsonl'),
+      JSON.stringify({ at: new Date().toISOString(), ...event }) + '\n',
+      { encoding: 'utf-8', flag: 'a' }
+    )
+    return true
+  }
+)
+
 ipcMain.handle('project:saveBackup', async (_e, folder: string, json: string) => {
   await mkdir(join(folder, '.autosave'), { recursive: true })
   await writeFile(join(folder, '.autosave', 'project.autosave.json'), json, 'utf-8')
