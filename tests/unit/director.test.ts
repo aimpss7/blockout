@@ -1,10 +1,32 @@
 import { describe, expect, it } from 'vitest'
 import { CAMERA_MOVE_PRESETS } from '../../src/engine/camera-moves'
-import { CAMERA_RECIPES, directorStateToken, reviewTimes } from '../../src/engine/director'
+import { CAMERA_RECIPES, directorStateToken, heroApprovalFingerprint, reviewTimes } from '../../src/engine/director'
 import { createProject } from '../../src/engine/schema'
 import { getProfile } from '../../src/engine/profiles'
 
 describe('agent director helpers', () => {
+  it('hero approval fingerprint ignores notes but reacts to visual state', () => {
+    const doc = createProject('Hero fingerprint')
+    const scene = doc.scenes[0]!
+    const shot = scene.shots[0]!
+    const before = heroApprovalFingerprint(scene, shot)
+
+    shot.notes = 'editorial note only'
+    expect(heroApprovalFingerprint(scene, shot)).toBe(before)
+
+    shot.aspect = '9:16'
+    expect(heroApprovalFingerprint(scene, shot)).not.toBe(before)
+  })
+
+  it('hero approval fingerprint reacts to shared blocking changes', () => {
+    const doc = createProject('Blocking fingerprint')
+    const scene = doc.scenes[0]!
+    const shot = scene.shots[0]!
+    const before = heroApprovalFingerprint(scene, shot)
+    scene.blocking[0]!.tracks.push({ entityId: 'missing-test-entity', marks: [] })
+    expect(heroApprovalFingerprint(scene, shot)).not.toBe(before)
+  })
+
   it('changes the stale-state token when the document changes', () => {
     const doc = createProject('Token test')
     const scene = doc.scenes[0]!
