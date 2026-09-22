@@ -6,7 +6,7 @@
 
 import { useMemo, useState } from 'react'
 import { useStore } from '../store'
-import { BUILTIN_PROFILES, getProfile } from '@engine/profiles'
+import { BUILTIN_PROFILES, getProfile, profileSupportsAspect } from '@engine/profiles'
 import { generatePrompt } from '@engine/prompt'
 import {
   exportShot,
@@ -57,6 +57,7 @@ export function DeliverPanel(): JSX.Element {
 
   const dims = exportDims(profile, shot.aspect, resolution)
   const overCap = profile.maxDuration !== undefined && shot.duration > profile.maxDuration
+  const unsupportedAspect = !profileSupportsAspect(profile, shot.aspect)
   const pct =
     progress.totalFrames > 0 ? Math.round((progress.frame / progress.totalFrames) * 100) : 0
 
@@ -96,6 +97,13 @@ export function DeliverPanel(): JSX.Element {
       <p style={{ color: 'var(--text-dim)', fontSize: 12, marginBottom: 12, lineHeight: 1.5 }}>
         {profile.attachHint}
       </p>
+
+      {unsupportedAspect && (
+        <div className="warning-chip" style={{ marginBottom: 10 }}>
+          ⚠ {profile.name} does not declare native support for {shot.aspect}. Export can still be created,
+          but the target generator may crop or reinterpret the frame.
+        </div>
+      )}
 
       {overCap && (
         <div className="warning-chip" style={{ marginBottom: 10 }}>
