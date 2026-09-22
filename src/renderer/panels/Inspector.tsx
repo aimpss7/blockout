@@ -1591,42 +1591,29 @@ function DirectorApprovalSection({ scene, shot }: { scene: Scene; shot: Shot }):
         </p>
       )}
 
-      {([
-        ['camera', 'Protect camera path from AI'],
-        ['lens', 'Protect lens from AI'],
-        ['framing', 'Protect framing from AI'],
-        ['staging', 'Protect scene staging from AI']
-      ] as const).map(([key, label]) => (
-        <label
-          key={key}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, margin: '5px 0' }}
-        >
-          <input
-            type="checkbox"
-            checked={locks[key] === true}
-            onChange={(e) => setLock(key, e.target.checked)}
-            style={{ width: 'auto' }}
-          />
-          {label}
-        </label>
-      ))}
-
-      {(locks.camera || locks.lens || locks.framing || locks.staging) && (
-        <button
-          className="btn"
-          style={{ width: '100%', marginTop: 6 }}
-          onClick={() =>
-            editDirector('clear AI director locks', (sh) => {
-              sh.director = {
-                ...sh.director,
-                locks: { ...sh.director?.locks, camera: false, lens: false, framing: false, staging: false }
-              }
-            })
-          }
-        >
-          Unlock camera/staging for AI
-        </button>
-      )}
+      <details>
+        <summary style={{ cursor: 'pointer', color: 'var(--text-dim)', fontSize: 11 }}>
+          AI control · {locks.camera || locks.lens || locks.framing || locks.staging ? 'protected' : 'unlocked'}
+        </summary>
+        <div style={{ marginTop: 7 }}>
+          {([
+            ['camera', 'Camera path'],
+            ['lens', 'Lens'],
+            ['framing', 'Framing'],
+            ['staging', 'Scene staging']
+          ] as const).map(([key, label]) => (
+            <button
+              key={key}
+              className={`toggle-row ${locks[key] ? 'active' : ''}`}
+              onClick={() => setLock(key, !locks[key])}
+              type="button"
+            >
+              <span>{label}</span>
+              <span className="toggle-switch"><span /></span>
+            </button>
+          ))}
+        </div>
+      </details>
     </div>
   )
 }
