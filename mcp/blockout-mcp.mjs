@@ -163,6 +163,20 @@ const TOOLS = [
     }
   },
   {
+    name: 'import_shot_plan',
+    description:
+      'Import a portable Blockout .shot.json Director Shot Plan and compile it through the exact same path used by ChatGPT/Codex.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        _expectedStateToken: { type: 'string' },
+        filePath: { type: 'string', description: 'Absolute path to a .shot.json file.' }
+      },
+      required: ['_expectedStateToken', 'filePath'],
+      additionalProperties: false
+    }
+  },
+  {
     name: 'compile_shot',
     description:
       'Preferred director tool. In one request: atomically replace staging/blocking/shot, optionally apply a high-level camera recipe, and set directing intent + hero-frame candidate. Requires the reviewed stateToken.',
@@ -812,6 +826,7 @@ const DIRECTOR_TOOL_NAMES = new Set([
   'get_state',
   'list_assets',
   'compile_shot',
+  'import_shot_plan',
   'list_camera_recipes',
   'apply_camera_recipe',
   'review_shot',
