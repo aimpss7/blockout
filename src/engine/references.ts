@@ -1,21 +1,10 @@
+import type { ProjectReferenceCard, ReferenceRole } from './types'
+
 /**
  * Project reference cards: semantic references stay separate from motion.
  * Files themselves live in refs/; these cards tell humans/agents what each
  * reference is authoritative for.
  */
-
-export type ReferenceRole = 'character' | 'product' | 'location' | 'style' | 'motion'
-
-export interface ProjectReferenceCard {
-  id: string
-  role: ReferenceRole
-  name: string
-  relativePath: string
-  note?: string
-  createdAt: string
-  /** Optional stable subject key shared with .shot.json plans. */
-  subjectKey?: string
-}
 
 export const REFERENCE_ROLE_HELP: Record<ReferenceRole, string> = {
   character: 'Identity, face/body continuity, wardrobe and character-specific appearance.',
