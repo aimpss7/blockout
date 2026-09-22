@@ -858,3 +858,26 @@ input[type='color'] {
   font-family: var(--mono);
 }
 .visual-memory-size { color: var(--text-faint); }
+
+.reference-card-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+  margin-bottom: 9px;
+}
+.reference-role-card {
+  min-width: 0;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  color: var(--text-dim);
+  border-radius: 6px;
+  padding: 6px 2px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+}
+.reference-role-card:hover { border-color: var(--accent); color: var(--text); }
+.reference-role-card b { font-size: 7px; letter-spacing: 0.04em; }
+.reference-role-card span { font-family: var(--mono); font-size: 10px; color: var(--text-faint); }
