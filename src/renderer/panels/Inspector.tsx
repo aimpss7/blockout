@@ -1413,6 +1413,7 @@ function DirectorCameraRecipesSection({ scene, shot }: { scene: Scene; shot: Sho
   const mutate = useMutate()
   const [recipeId, setRecipeId] = useState(CAMERA_RECIPES[0]!.id)
   const recipe = CAMERA_RECIPES.find((item) => item.id === recipeId) ?? CAMERA_RECIPES[0]!
+  const groups = [...new Set(CAMERA_RECIPES.map((item) => item.useCase ?? 'character'))]
 
   const apply = (): void => {
     getSceneManager()?.applyCameraMove(recipe.presetId)
@@ -1436,21 +1437,30 @@ function DirectorCameraRecipesSection({ scene, shot }: { scene: Scene; shot: Sho
     <div className="panel-section">
       <div className="panel-title">Director camera</div>
       <div className="field">
-        <label>Choose by shot intention</label>
+        <label>Choose by shot purpose</label>
         <select value={recipeId} onChange={(e) => setRecipeId(e.target.value)}>
-          {CAMERA_RECIPES.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.name} · {item.intent}
-            </option>
+          {groups.map((group) => (
+            <optgroup key={group} label={group.toUpperCase()}>
+              {CAMERA_RECIPES.filter((item) => (item.useCase ?? 'character') === group).map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name} · {item.intent}
+                </option>
+              ))}
+            </optgroup>
           ))}
         </select>
       </div>
-      <p style={{ color: 'var(--text-faint)', fontSize: 11, lineHeight: 1.4, marginBottom: 4 }}>
-        {recipe.shotFunction}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 8 }}>
+        {recipe.defaultLens !== null && <span className="badge">{recipe.defaultLens}mm</span>}
+        {recipe.shotSize && <span className="badge">{recipe.shotSize}</span>}
+        {recipe.height && <span className="badge">{recipe.height}</span>}
+        <span className="badge">{recipe.pacing}</span>
+      </div>
+      <p style={{ color: 'var(--text-dim)', fontSize: 11, lineHeight: 1.4, marginBottom: 4 }}>
+        <b>Why:</b> {recipe.shotFunction}
       </p>
       <p style={{ color: 'var(--text-faint)', fontSize: 11, lineHeight: 1.4, marginBottom: 8 }}>
         {recipe.description}
-        {recipe.defaultLens !== null ? ` Suggested lens: ${recipe.defaultLens}mm.` : ''}
       </p>
       <button className="btn primary" style={{ width: '100%' }} onClick={apply}>
         Apply director recipe
@@ -1629,6 +1639,7 @@ function CameraInspector({ scene, shot }: { scene: Scene; shot: Shot }): JSX.Ele
   const switchCamera = useStore((s) => s.switchCamera)
   const addCameraToShot = useStore((s) => s.addCameraToShot)
   const clearCameraMarks = useStore((s) => s.clearCameraMarks)
+  const [customLens, setCustomLens] = useState('')
 
   const cam = shot.camera
   const orderedMarks = [...cam.marks].sort((a, b) => a.time - b.time)
@@ -1702,6 +1713,38 @@ function CameraInspector({ scene, shot }: { scene: Scene; shot: Shot }): JSX.Ele
                 {fl}
               </button>
             ))}
+          </div>
+        </div>
+        <div className="field">
+          <label>Exact focal length (8–300mm)</label>
+          <div className="field-row">
+            <input
+              type="number"
+              min={8}
+              max={300}
+              step={1}
+              placeholder={String(Math.round(currentFocal))}
+              value={customLens}
+              onChange={(e) => setCustomLens(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter') return
+                const value = num(customLens)
+                if (value === null) return
+                emit('setLens', { focalLength: clamp(value, 8, 300) })
+                setCustomLens('')
+              }}
+            />
+            <button
+              className="btn"
+              onClick={() => {
+                const value = num(customLens)
+                if (value === null) return
+                emit('setLens', { focalLength: clamp(value, 8, 300) })
+                setCustomLens('')
+              }}
+            >
+              Set mm
+            </button>
           </div>
         </div>
         <div className="field">
