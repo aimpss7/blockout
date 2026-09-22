@@ -1221,6 +1221,9 @@ export async function executeControlAction(action: string, params: Params = {}):
       if (!shot || !scene || !folder) throw new Error('Open and save a project first.')
       const kindRaw = str(params, 'kind')
       const kind = kindRaw === 'hero' || kindRaw === 'daily' ? kindRaw : 'daily'
+      if (kind === 'hero' && !shot.director?.heroFrameApproved) {
+        throw new Error('Hero Board requires an approved Hero Frame.')
+      }
       const maxFrames = Math.min(12, Math.max(2, Math.round(flt(params, 'maxFrames') ?? 8)))
       const heroTime = shot.director?.heroFrameTime
       // Phase-board mode deliberately samples more densely than review_shot:
