@@ -325,6 +325,8 @@ export function DeliverPanel(): JSX.Element {
         <button
           className="btn"
           style={{ flex: 1 }}
+          disabled={!shot.director?.heroFrameApproved}
+          title={shot.director?.heroFrameApproved ? 'Save the approved Hero phase board' : 'Approve a Hero Frame first'}
           onClick={() =>
             void executeControlAction('ui_save_visual_checkpoint', { kind: 'hero', maxFrames: 8 })
               .then(() => {
