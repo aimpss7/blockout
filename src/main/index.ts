@@ -252,6 +252,22 @@ ipcMain.handle('project:listSnapshots', async (_e, folder: string) => {
 
 ipcMain.handle('file:readText', async (_e, path: string) => readFile(path, 'utf-8'))
 
+ipcMain.handle('project:listReviews', async (_e, folder: string) => {
+  const out: { kind: 'daily' | 'hero'; name: string; path: string; savedAt: string; bytes: number }[] = []
+  for (const kind of ['daily', 'hero'] as const) {
+    const dir = join(folder, 'reviews', kind === 'daily' ? 'dailies' : 'hero')
+    try {
+      const names = (await readdir(dir)).filter((name) => name.endsWith('.webp')).sort().reverse()
+      for (const name of names) {
+        const path = join(dir, name)
+        const info = await stat(path)
+        out.push({ kind, name, path, savedAt: info.mtime.toISOString(), bytes: info.size })
+      }
+    } catch {}
+  }
+  return out.sort((a, b) => b.savedAt.localeCompare(a.savedAt))
+})
+
 ipcMain.handle('project:saveBackup', async (_e, folder: string, json: string) => {
   await mkdir(join(folder, '.autosave'), { recursive: true })
   await writeFile(join(folder, '.autosave', 'project.autosave.json'), json, 'utf-8')
