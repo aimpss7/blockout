@@ -308,9 +308,11 @@ export interface Scene {
   drafts?: Shot[]
 }
 
+export type ReferenceRole = 'character' | 'product' | 'location' | 'style' | 'motion'
+
 export interface ProjectReferenceCard {
   id: string
-  role: 'character' | 'product' | 'location' | 'style' | 'motion'
+  role: ReferenceRole
   name: string
   /** Project-relative path under refs/. */
   relativePath: string
