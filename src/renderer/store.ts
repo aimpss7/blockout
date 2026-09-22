@@ -412,7 +412,11 @@ export const useStore = create<BlockoutState>((set, get) => ({
     get().mutate(n > 1 ? `delete ${n} marks` : 'delete mark', (doc) => {
       for (const scene of doc.scenes) {
         for (const shot of [...scene.shots, ...(scene.drafts ?? [])]) {
+          const before = shot.camera.marks.length
           shot.camera.marks = shot.camera.marks.filter((m) => !ids.has(m.id))
+          if (shot.camera.marks.length !== before) {
+            shot.director = { ...shot.director, heroFrameApproved: false }
+          }
         }
         for (const take of scene.blocking) {
           for (const track of take.tracks) {
