@@ -429,6 +429,13 @@ export async function exportShot(opts: ExportOptions): Promise<ExportResult> {
             intent: shot.director?.intent ?? null,
             cameraRecipeId: shot.director?.cameraRecipeId ?? null
           },
+          projectReferences: (doc.references ?? []).map((ref) => ({
+            role: ref.role,
+            name: ref.name,
+            file: ref.relativePath,
+            note: ref.note ?? null,
+            subjectKey: ref.subjectKey ?? null
+          })),
           roles: {
             motion: {
               file: opts.passes.clean ? `${shotStem}_reference.mp4` : null,
