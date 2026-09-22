@@ -881,3 +881,11 @@ input[type='color'] {
 .reference-role-card:hover { border-color: var(--accent); color: var(--text); }
 .reference-role-card b { font-size: 7px; letter-spacing: 0.04em; }
 .reference-role-card span { font-family: var(--mono); font-size: 10px; color: var(--text-faint); }
+
+.language-select {
+  width: 54px;
+  padding: 4px 5px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
