@@ -6,7 +6,7 @@
  */
 export type UiLanguage = 'en' | 'ru'
 
-const EN = {
+export const EN = {
   stage: 'STAGE',
   shoot: 'SHOOT',
   deliver: 'DELIVER',
@@ -29,7 +29,7 @@ const EN = {
   visualMemory: 'Visual Memory'
 } as const
 
-const RU: Record<keyof typeof EN, string> = {
+export const RU: Record<keyof typeof EN, string> = {
   stage: 'СЦЕНА',
   shoot: 'СЪЁМКА',
   deliver: 'ЭКСПОРТ',
