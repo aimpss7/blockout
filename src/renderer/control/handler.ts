@@ -607,7 +607,7 @@ async function execute(action: string, params: Params): Promise<unknown> {
         // Never clamp marks on duration change — blocking is shared.
         if (duration !== undefined) shot.duration = Math.min(600, Math.max(0.5, duration))
         if (fps === 24 || fps === 25 || fps === 30) shot.fps = fps
-        if (aspect && ['16:9', '9:16', '2.39:1', '4:3', '1:1'].includes(aspect)) {
+        if (aspect && ['16:9', '9:16', '3:4', '4:5', '2.39:1', '4:3', '1:1'].includes(aspect)) {
           shot.aspect = aspect
         }
         if (name || duration !== undefined || fps !== undefined || aspect) {
