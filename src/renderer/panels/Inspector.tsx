@@ -1449,11 +1449,16 @@ function CameraPoseSection({ scene, shot }: { scene: Scene; shot: Shot }): JSX.E
 function DirectorCameraRecipesSection({ scene, shot }: { scene: Scene; shot: Shot }): JSX.Element {
   const language = useUiLanguage()
   const mutate = useMutate()
+  const selection = useStore((state) => state.selection)
   const [recipeId, setRecipeId] = useState(CAMERA_RECIPES[0]!.id)
   const recipe = CAMERA_RECIPES.find((item) => item.id === recipeId) ?? CAMERA_RECIPES[0]!
   const groups = [...new Set(CAMERA_RECIPES.map((item) => item.useCase ?? 'character'))]
 
   const apply = (): void => {
+    const subject =
+      selection?.kind === 'entity'
+        ? scene.entities.find((entity) => entity.id === selection.entityId)
+        : scene.entities.find((entity) => entity.assetId.startsWith('person.')) ?? scene.entities[0]
     getSceneManager()?.applyCameraMove(recipe.presetId)
     mutate(`director recipe: ${recipe.name}`, (doc) => {
       const sh = findShotOrDraft(doc, scene.id, shot.id)
@@ -1466,6 +1471,7 @@ function DirectorCameraRecipesSection({ scene, shot }: { scene: Scene; shot: Sho
         ...sh.director,
         intent: recipe.intent,
         cameraRecipeId: recipe.id,
+        cameraSubjectEntityId: subject?.id,
         heroFrameApproved: false
       }
     })
