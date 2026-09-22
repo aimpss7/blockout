@@ -298,6 +298,7 @@ export function App(): JSX.Element {
   }
 
   return (
+    <LanguageContext.Provider value={language}>
     <div className={`app ${PLATFORM_CLASS}`}>
       <div className="titlebar">
         <span className="app-name">BLOCKOUT</span>
