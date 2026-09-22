@@ -75,6 +75,11 @@ ipcMain.handle('dialog:newProject', async () => {
     const folder = join(process.env.BLOCKOUT_SMOKE_DIR, 'Smoke.blockout')
     await mkdir(join(folder, 'assets'), { recursive: true })
     await mkdir(join(folder, 'exports'), { recursive: true })
+    await mkdir(join(folder, 'refs'), { recursive: true })
+    await mkdir(join(folder, 'reviews', 'cache'), { recursive: true })
+    await mkdir(join(folder, 'reviews', 'dailies'), { recursive: true })
+    await mkdir(join(folder, 'reviews', 'hero'), { recursive: true })
+    await mkdir(join(folder, 'history', 'snapshots'), { recursive: true })
     return { folder, name: 'Smoke' }
   }
   if (!mainWindow) return null
@@ -91,6 +96,11 @@ ipcMain.handle('dialog:newProject', async () => {
   await mkdir(folder, { recursive: true })
   await mkdir(join(folder, 'assets'), { recursive: true })
   await mkdir(join(folder, 'exports'), { recursive: true })
+  await mkdir(join(folder, 'refs'), { recursive: true })
+  await mkdir(join(folder, 'reviews', 'cache'), { recursive: true })
+  await mkdir(join(folder, 'reviews', 'dailies'), { recursive: true })
+  await mkdir(join(folder, 'reviews', 'hero'), { recursive: true })
+  await mkdir(join(folder, 'history', 'snapshots'), { recursive: true })
   return { folder, name }
 })
 
@@ -117,9 +127,16 @@ ipcMain.handle('dialog:pickFile', async (_e, filters: { name: string; extensions
 
 ipcMain.handle('project:save', async (_e, folder: string, json: string) => {
   await mkdir(folder, { recursive: true })
+  await mkdir(join(folder, 'history', 'snapshots'), { recursive: true })
   // Atomic-ish write: temp file then rename would be ideal; write+fsync is
   // acceptable here since autosave keeps a rolling backup too.
   await writeFile(join(folder, 'project.json'), json, 'utf-8')
+  const stamp = new Date().toISOString()
+  await writeFile(
+    join(folder, 'history', 'events.jsonl'),
+    JSON.stringify({ at: stamp, type: 'save', source: 'human', file: 'project.json' }) + '\n',
+    { encoding: 'utf-8', flag: 'a' }
+  )
   return true
 })
 
