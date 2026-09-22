@@ -176,6 +176,10 @@ export const BUILTIN_PROFILES: GeneratorProfile[] = [
   }
 ]
 
+export function profileSupportsAspect(profile: GeneratorProfile, aspect: AspectId): boolean {
+  return profile.aspects.includes(aspect)
+}
+
 export function getProfile(id: string, extra: GeneratorProfile[] = []): GeneratorProfile {
   return (
     extra.find((p) => p.id === id) ??
