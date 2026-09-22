@@ -38,6 +38,17 @@ describe('agent director helpers', () => {
     expect(times[times.length - 1]).toBeCloseTo(10 - 1 / 24)
   })
 
+  it('covers the main directing use cases with structured camera metadata', () => {
+    const useCases = new Set(CAMERA_RECIPES.map((recipe) => recipe.useCase))
+    expect(useCases).toEqual(
+      new Set(['character', 'dialogue', 'product', 'vehicle', 'environment', 'action', undefined])
+    )
+    const product = CAMERA_RECIPES.find((recipe) => recipe.id === 'product-reveal')!
+    expect(product.defaultLens).toBe(50)
+    expect(product.shotSize).toBe('MCU')
+    expect(product.height).toBe('eye')
+  })
+
   it('keeps director recipes mapped to real deterministic camera presets', () => {
     const presetIds = new Set(CAMERA_MOVE_PRESETS.map((p) => p.id))
     const recipeIds = new Set<string>()
