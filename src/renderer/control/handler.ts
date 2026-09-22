@@ -500,7 +500,8 @@ export async function executeControlAction(action: string, params: Params = {}):
         }
       })
       const safeName = `${scene.name}-${shot.name}`.replace(/[^a-zA-Z0-9_-]+/g, '-')
-      const path = `${folder}/plans/${safeName}.shot.json`
+      const stamp = new Date().toISOString().replace(/[:.T]/g, '-').replace('Z', '')
+      const path = `${folder}/plans/${stamp}-${safeName}.shot.json`
       await window.blockout.exportWriteFile(path, JSON.stringify(plan, null, 2) + '\n')
       return { exported: true, path, stateToken: currentStateToken() }
     }
@@ -1245,7 +1246,7 @@ export async function executeControlAction(action: string, params: Params = {}):
         heroTime === undefined ? [] : [heroTime]
       )
       const webp = await renderReviewSheet(times, 400, 225, 4, 'webp', 0.76)
-      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+      const stamp = new Date().toISOString().replace(/[:.T]/g, '-').replace('Z', '')
       const safeShot = shot.name.replace(/[^a-zA-Z0-9_-]+/g, '-')
       const dir = kind === 'hero' ? 'hero' : 'dailies'
       const stem = `${stamp}-${safeShot}-phase-board`
