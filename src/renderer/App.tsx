@@ -270,6 +270,14 @@ export function App(): JSX.Element {
       if (current) await window.blockout.saveSnapshot(folder, current, 'before-restore')
       const json = await window.blockout.readSnapshot(folder, path)
       if (useStore.getState().loadFromJson(folder, json)) {
+        useStore.setState({ dirty: true })
+        void window.blockout.appendHistoryEvent(folder, {
+          type: 'restore',
+          source: 'human',
+          label: path,
+          sceneId: useStore.getState().sceneId,
+          shotId: useStore.getState().shotId
+        })
         setHistoryOpen(false)
         useStore.getState().toast('Checkpoint restored. Save to make it current.', 'success')
       }
