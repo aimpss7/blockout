@@ -16,6 +16,8 @@ import { MOTION_PRESETS, type MotionPreset } from '@engine/motions'
 import { CAMERA_MOVE_PRESETS } from '@engine/camera-moves'
 import { CAMERA_RECIPES } from '@engine/director'
 import { executeControlAction } from '../control/handler'
+import { useUiLanguage } from '../App'
+import { uiText } from '../i18n'
 import { ACTION_PRESETS } from '@engine/action-presets'
 import { ShotEvaluator } from '@engine/evaluate'
 import { newId } from '@engine/ids'
@@ -1411,6 +1413,7 @@ function CameraPoseSection({ scene, shot }: { scene: Scene; shot: Shot }): JSX.E
 /* ---------------------- director camera recipes --------------------- */
 
 function DirectorCameraRecipesSection({ scene, shot }: { scene: Scene; shot: Shot }): JSX.Element {
+  const language = useUiLanguage()
   const mutate = useMutate()
   const [recipeId, setRecipeId] = useState(CAMERA_RECIPES[0]!.id)
   const recipe = CAMERA_RECIPES.find((item) => item.id === recipeId) ?? CAMERA_RECIPES[0]!
@@ -1436,7 +1439,7 @@ function DirectorCameraRecipesSection({ scene, shot }: { scene: Scene; shot: Sho
 
   return (
     <div className="panel-section">
-      <div className="panel-title">Director camera</div>
+      <div className="panel-title">{uiText(language, 'directorCamera')}</div>
       <div className="field">
         <label>Choose by shot purpose</label>
         <select value={recipeId} onChange={(e) => setRecipeId(e.target.value)}>
@@ -1622,6 +1625,7 @@ function DirectorApprovalSection({ scene, shot }: { scene: Scene; shot: Shot }):
 /* =========================== C) Camera ============================= */
 
 function CameraInspector({ scene, shot }: { scene: Scene; shot: Shot }): JSX.Element {
+  const language = useUiLanguage()
   const mutate = useMutate()
   const setSelection = useStore((s) => s.setSelection)
   const switchCamera = useStore((s) => s.switchCamera)
@@ -1737,7 +1741,7 @@ function CameraInspector({ scene, shot }: { scene: Scene; shot: Shot }): JSX.Ele
           </div>
         </div>
         <div className="field">
-          <label>Exact focal length (8–300mm)</label>
+          <label>{uiText(language, 'exactFocal')} (8–300mm)</label>
           <div className="field-row">
             <input
               type="number"
@@ -1816,7 +1820,7 @@ function CameraInspector({ scene, shot }: { scene: Scene; shot: Shot }): JSX.Ele
       <DirectorCameraRecipesSection scene={scene} shot={shot} />
 
       <details className="advanced-section">
-        <summary>Advanced camera</summary>
+        <summary>{uiText(language, 'advancedCamera')}</summary>
         <CameraMovesSection scene={scene} />
 
         <div className="panel-section">
