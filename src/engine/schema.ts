@@ -28,6 +28,7 @@ export function createProject(name: string): ProjectDoc {
     id: newId('proj'),
     name,
     settings: { defaultProfileId: 'seedance-2.5' },
+    references: [],
     scenes: []
   }
   doc.scenes.push(createScene(1))
@@ -198,6 +199,11 @@ function requirePortableProjectPath(value: string, location: string): string {
 }
 
 function normalizeProjectPaths(doc: ProjectDoc): ProjectDoc {
+  if (doc.references) {
+    for (const [index, ref] of doc.references.entries()) {
+      ref.relativePath = requirePortableProjectPath(ref.relativePath, `references[${index}].relativePath`)
+    }
+  }
   for (const [sceneIndex, scene] of doc.scenes.entries()) {
     for (const [entityIndex, entity] of scene.entities.entries()) {
       if (entity.sourceFile !== undefined) {
@@ -247,6 +253,14 @@ export function serializeProject(doc: ProjectDoc): string {
  * value is replaced with its safe default rather than rejected.
  */
 function migrateProject(doc: ProjectDoc): ProjectDoc {
+  if (!Array.isArray(doc.references)) doc.references = []
+  doc.references = doc.references.filter((ref) =>
+    typeof ref?.id === 'string' &&
+    typeof ref?.name === 'string' &&
+    typeof ref?.relativePath === 'string' &&
+    normalizeProjectRelativePath(ref.relativePath) !== null &&
+    ['character', 'product', 'location', 'style', 'motion'].includes(ref.role)
+  )
   for (const scene of doc.scenes) {
     const raw = (scene as { scans?: unknown }).scans
     if (!Array.isArray(raw)) {
