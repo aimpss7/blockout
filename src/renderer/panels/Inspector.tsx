@@ -721,6 +721,41 @@ function EntityInspector({
           </>
         )}
         <div className="field">
+          <label>Base color</label>
+          <div className="field-row">
+            <input
+              type="color"
+              value={entity.color ?? '#86868e'}
+              onChange={(e) => editEntity('object color', (en) => (en.color = e.target.value))}
+            />
+            <input
+              type="text"
+              value={entity.color ?? ''}
+              placeholder="#86868e"
+              onChange={(e) => {
+                const value = e.target.value.trim()
+                if (/^#[0-9a-fA-F]{6}$/.test(value)) editEntity('object color', (en) => (en.color = value))
+              }}
+            />
+            {entity.color && (
+              <button className="btn small" onClick={() => editEntity('reset object color', (en) => delete en.color)}>
+                Reset
+              </button>
+            )}
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 5 }}>
+            {SWATCHES.map((c) => (
+              <button
+                key={c}
+                className="swatch"
+                style={{ background: c }}
+                title={c}
+                onClick={() => editEntity('object color', (en) => (en.color = c))}
+              />
+            ))}
+          </div>
+        </div>
+        <div className="field">
           <label>
             <input
               type="checkbox"
