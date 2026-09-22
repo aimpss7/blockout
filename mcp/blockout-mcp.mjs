@@ -43,6 +43,19 @@ const PROTOCOL_VERSION = '2024-11-05'
 // object is passed through verbatim as that action's params.
 const TOOLS = [
   {
+    name: 'get_visual_context',
+    description:
+      'Return one compact WebP phase board plus recent project changes and the current state token. Preferred orientation call before reviewing or revising a shot.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        maxFrames: { type: 'number', description: '2–9 representative phases; default 6.' },
+        historyLimit: { type: 'number', description: '1–30 recent change events; default 12.' }
+      },
+      additionalProperties: false
+    }
+  },
+  {
     name: 'get_recent_changes',
     description:
       'Return the latest compact project history events so an agent can understand what changed without re-reading the whole project.',
@@ -856,6 +869,7 @@ const TOOLS = [
 
 const DIRECTOR_TOOL_NAMES = new Set([
   'get_state',
+  'get_visual_context',
   'get_recent_changes',
   'list_assets',
   'compile_shot',
