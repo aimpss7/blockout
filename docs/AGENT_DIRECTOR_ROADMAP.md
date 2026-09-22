@@ -264,3 +264,20 @@ largest surface.
   Style and Motion. Their authority is deliberately separate: motion references
   do not own identity/look.
 - 3:4 and 4:5 now survive the complete agent shot-compiler validation path.
+
+
+## References / Visual Memory / localization status
+
+Implemented:
+- reference cards persist in `project.json` and migrate safely for older projects;
+- Deliver UI can import/remove Character, Product, Location, Style and Motion references;
+- exported `reference_roles.json` carries those semantic project references downstream;
+- Deliver now browses saved Dailies/Hero phase-board artifacts with file sizes;
+- persistent workspace setting now includes UI language;
+- compact EN/RU selector is present in the titlebar;
+- curated professional RU/EN terminology layer has started (camera/film terms are
+  translated deliberately; standards such as Super 35, focal-length units and
+  shot-size abbreviations remain stable).
+
+Remaining localization work is breadth: route all visible strings through the
+curated dictionary before declaring RU complete.
