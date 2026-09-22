@@ -23,6 +23,10 @@ export interface BlockoutAPI {
   openProjectDialog(): Promise<string | null>
   pickFile(filters: { name: string; extensions: string[] }[]): Promise<string | null>
   saveProject(folder: string, json: string): Promise<boolean>
+  appendHistoryEvent(
+    folder: string,
+    event: { type: string; source: string; label?: string; sceneId?: string | null; shotId?: string | null }
+  ): Promise<boolean>
   saveBackup(folder: string, json: string): Promise<boolean>
   loadProject(folder: string): Promise<{
     json: string | null
@@ -105,6 +109,7 @@ const api: BlockoutAPI = {
   openProjectDialog: () => ipcRenderer.invoke('dialog:openProject'),
   pickFile: (filters) => ipcRenderer.invoke('dialog:pickFile', filters),
   saveProject: (folder, json) => ipcRenderer.invoke('project:save', folder, json),
+  appendHistoryEvent: (folder, event) => ipcRenderer.invoke('project:historyEvent', folder, event),
   saveBackup: (folder, json) => ipcRenderer.invoke('project:saveBackup', folder, json),
   loadProject: (folder) => ipcRenderer.invoke('project:load', folder),
   importAsset: (folder, sourcePath) => ipcRenderer.invoke('project:importAsset', folder, sourcePath),
