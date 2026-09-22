@@ -4,7 +4,7 @@
  * Stage/Shoot/Deliver layouts, global keyboard map, and autosave.
  */
 
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useStore, currentProjectJson } from './store'
 import { Viewport } from './viewport/Viewport'
 import { Library } from './panels/Library'
@@ -70,6 +70,11 @@ export function Credits({ compact = false }: { compact?: boolean }): JSX.Element
 
 function Welcome(): JSX.Element {
   const newProject = useStore((s) => s.newProject)
+  const [workspace, setWorkspace] = useState<string | null>(null)
+
+  useEffect(() => {
+    void window.blockout.workspaceGet().then((settings) => setWorkspace(settings.root))
+  }, [])
   const loadFromJson = useStore((s) => s.loadFromJson)
   const toast = useStore((s) => s.toast)
 
@@ -122,6 +127,20 @@ function Welcome(): JSX.Element {
         </button>
         <button className="btn" onClick={() => useStore.getState().setHelpOpen(true)}>
           ? Tutorial
+        </button>
+      </div>
+      <div style={{ marginTop: 18, color: 'var(--text-faint)', fontSize: 11, textAlign: 'center' }}>
+        <div>{workspace ? `Workspace: ${workspace}` : 'Workspace not selected yet'}</div>
+        <button
+          className="btn small"
+          style={{ marginTop: 6 }}
+          onClick={() =>
+            void window.blockout.workspaceChoose().then((settings) => {
+              if (settings) setWorkspace(settings.root)
+            })
+          }
+        >
+          Change Workspace…
         </button>
       </div>
       <Credits />
