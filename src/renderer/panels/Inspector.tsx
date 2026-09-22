@@ -1477,7 +1477,7 @@ function DirectorCameraRecipesSection({ scene, shot }: { scene: Scene; shot: Sho
     // Apply after the document metadata mutation so SceneManager reads the
     // intended subject id rather than whichever entity happened to be selected.
     if (subject) useStore.getState().setSelection({ kind: 'entity', entityId: subject.id })
-    getSceneManager()?.applyCameraMove(recipe.presetId)
+    getSceneManager()?.applyCameraMove(recipe.presetId, recipe.id)
 
   }
 
