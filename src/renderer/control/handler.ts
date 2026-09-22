@@ -230,6 +230,32 @@ function routineSpecFromParams(params: Params): RoutineSpec {
 export async function executeControlAction(action: string, params: Params = {}): Promise<unknown> {
   const s = useStore.getState()
   switch (action) {
+    case 'get_visual_context': {
+      requireDoc()
+      const folder = s.projectFolder
+      const shot = s.shot()
+      if (!shot) throw new Error('No active shot.')
+      const maxFrames = Math.min(9, Math.max(2, Math.round(flt(params, 'maxFrames') ?? 6)))
+      const heroTime = shot.director?.heroFrameTime
+      const times = reviewTimes(
+        shot.duration,
+        shot.fps,
+        shot.camera.marks.map((mark) => mark.time),
+        maxFrames,
+        heroTime === undefined ? [] : [heroTime]
+      )
+      const webp = await renderReviewSheet(times, 400, 225, 3, 'webp', 0.76)
+      return {
+        imageBase64: bufferToBase64(webp),
+        mimeType: 'image/webp',
+        times,
+        heroFrameTime: heroTime ?? null,
+        heroFrameApproved: shot.director?.heroFrameApproved ?? false,
+        recentChanges: folder ? await window.blockout.recentHistory(folder, Math.min(30, Math.max(1, Math.round(flt(params, 'historyLimit') ?? 12)))) : [],
+        stateToken: currentStateToken()
+      }
+    }
+
     case 'get_recent_changes': {
       requireDoc()
       const folder = s.projectFolder
