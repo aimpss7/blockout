@@ -230,6 +230,17 @@ function routineSpecFromParams(params: Params): RoutineSpec {
 export async function executeControlAction(action: string, params: Params = {}): Promise<unknown> {
   const s = useStore.getState()
   switch (action) {
+    case 'get_recent_changes': {
+      requireDoc()
+      const folder = s.projectFolder
+      if (!folder) return { events: [] }
+      const limit = Math.min(100, Math.max(1, Math.round(flt(params, 'limit') ?? 30)))
+      return {
+        events: await window.blockout.recentHistory(folder, limit),
+        stateToken: currentStateToken()
+      }
+    }
+
     case 'get_state': {
       const detail = str(params, 'detail') === 'full' ? 'full' : 'compact'
       return summary(detail)
