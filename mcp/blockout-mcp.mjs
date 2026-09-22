@@ -648,6 +648,22 @@ const TOOLS = [
     }
   },
   {
+    name: 'save_visual_checkpoint',
+    description:
+      'Save one compact WebP phase board showing sequential animation/camera phases plus JSON metadata. Use this for durable dailies/hero visual memory; use review_shot for temporary inspection.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        _expectedStateToken: { type: 'string' },
+        kind: { type: 'string', enum: ['daily', 'hero'] },
+        maxFrames: { type: 'number', description: '2–12 sequential phases; default 8.' },
+        source: { type: 'string', description: 'human, chatgpt, codex, import, etc.' },
+        note: { type: 'string' }
+      },
+      additionalProperties: false
+    }
+  },
+  {
     name: 'export_shot',
     description:
       'Export the active shot as a deterministic generator-reference package. Default is a lean motion-reference MP4 + stills + prompt + metadata/reference roles; depth/normal are opt-in.',
@@ -801,6 +817,7 @@ const DIRECTOR_TOOL_NAMES = new Set([
   'review_shot',
   'approve_hero_frame',
   'set_human_locks',
+  'save_visual_checkpoint',
   'export_shot',
   'import_motion_previs_camera',
   'set_reference'
