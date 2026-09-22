@@ -99,6 +99,7 @@ async function ensureProjectLayout(folder: string): Promise<void> {
   for (const rel of [
     'assets',
     'refs',
+    'plans',
     'exports',
     'history/snapshots',
     'reviews/cache',
@@ -250,7 +251,12 @@ ipcMain.handle('project:listSnapshots', async (_e, folder: string) => {
   }
 })
 
-ipcMain.handle('file:readText', async (_e, path: string) => readFile(path, 'utf-8'))
+ipcMain.handle('project:readSnapshot', async (_e, folder: string, path: string) => {
+  const base = resolve(folder, 'history', 'snapshots')
+  const full = resolve(path)
+  if (!full.startsWith(base + sep)) throw new Error('snapshot path escapes project history')
+  return readFile(full, 'utf-8')
+})
 
 ipcMain.handle('project:listReviews', async (_e, folder: string) => {
   const out: { kind: 'daily' | 'hero'; name: string; path: string; savedAt: string; bytes: number }[] = []
@@ -332,6 +338,16 @@ ipcMain.handle('project:importReference', async (_e, folder: string, sourcePath:
   const dest = join(refsDir, name)
   await copyFile(sourcePath, dest)
   return { relativePath: `refs/${name}`, name: sanitizeName(basename(sourcePath, extname(sourcePath))) }
+})
+
+ipcMain.handle('project:importPlan', async (_e, folder: string, sourcePath: string) => {
+  const plansDir = join(folder, 'plans')
+  await mkdir(plansDir, { recursive: true })
+  const sourceName = sanitizeName(basename(sourcePath))
+  const name = sanitizeName(`${Date.now().toString(36)}-${sourceName}`)
+  const dest = join(plansDir, name)
+  await copyFile(sourcePath, dest)
+  return { relativePath: `plans/${name}`, name: sanitizeName(basename(sourcePath, extname(sourcePath))) }
 })
 
 ipcMain.handle('file:readAbsolute', async (_e, folder: string, relativePath: string) => {
