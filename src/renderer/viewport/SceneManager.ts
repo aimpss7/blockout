@@ -1771,7 +1771,11 @@ export class SceneManager {
         shot.camera.marks = marks
         shot.director = {
           ...shot.director,
-          cameraRecipeId: undefined,
+          // Preserve the high-level recipe identity when Director Camera
+          // intentionally calls this low-level preset; ordinary Camera Moves
+          // have no recipe metadata and remain undefined.
+          cameraRecipeId: shot.director?.cameraRecipeId,
+          cameraSubjectEntityId: shot.director?.cameraRecipeId ? subject.id : undefined,
           heroFrameApproved: false
         }
         // Aim-lock moves stay glued to the subject even if marks are re-timed
