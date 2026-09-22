@@ -351,6 +351,7 @@ export function Viewport(): JSX.Element {
   const selection = useStore((s) => s.selection)
   const doc = useStore((s) => s.doc)
   const sceneId = useStore((s) => s.sceneId)
+  const shotId = useStore((s) => s.shotId)
   const setSelection = useStore((s) => s.setSelection)
   const setDroppingMarks = useStore((s) => s.setDroppingMarks)
 
