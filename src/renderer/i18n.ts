@@ -1,3 +1,5 @@
+import { createContext, useContext } from 'react'
+
 /**
  * Minimal dependency-free UI localization.
  *
@@ -68,4 +70,10 @@ export type UiKey = keyof typeof EN
 
 export function uiText(language: UiLanguage, key: UiKey): string {
   return language === 'ru' ? RU[key] : EN[key]
+}
+
+export const LanguageContext = createContext<UiLanguage>('en')
+
+export function useUiLanguage(): UiLanguage {
+  return useContext(LanguageContext)
 }
