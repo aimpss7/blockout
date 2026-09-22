@@ -18,8 +18,7 @@ import {
 } from '../export/exporter'
 import { exportGlb } from '../export/gltf'
 import { executeControlAction } from '../control/handler'
-import { useUiLanguage } from '../App'
-import { uiText } from '../i18n'
+import { uiText, useUiLanguage } from '../i18n'
 
 export function DeliverPanel(): JSX.Element {
   const language = useUiLanguage()
