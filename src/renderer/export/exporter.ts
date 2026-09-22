@@ -2,8 +2,8 @@
 /**
  * The Deliver pipeline. Exports are deterministic: the timeline is stepped
  * at exactly the shot's fps and every frame is rendered from the same
- * ShotEvaluator state used in playback, then piped as PNG to ffmpeg in the
- * main process. Output never depends on playback performance.
+ * ShotEvaluator state used in playback, then piped as raw RGBA frames to ffmpeg
+ * in the main process. Output never depends on playback performance.
  */
 
 import * as THREE from 'three'
