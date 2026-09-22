@@ -1459,7 +1459,6 @@ function DirectorCameraRecipesSection({ scene, shot }: { scene: Scene; shot: Sho
       selection?.kind === 'entity'
         ? scene.entities.find((entity) => entity.id === selection.entityId)
         : scene.entities.find((entity) => entity.assetId.startsWith('person.')) ?? scene.entities[0]
-    getSceneManager()?.applyCameraMove(recipe.presetId)
     mutate(`director recipe: ${recipe.name}`, (doc) => {
       const sh = findShotOrDraft(doc, scene.id, shot.id)
       if (!sh) return
@@ -1475,6 +1474,10 @@ function DirectorCameraRecipesSection({ scene, shot }: { scene: Scene; shot: Sho
         heroFrameApproved: false
       }
     })
+    // Apply after the document metadata mutation so SceneManager reads the
+    // intended subject id rather than whichever entity happened to be selected.
+    getSceneManager()?.applyCameraMove(recipe.presetId, subject?.id)
+
   }
 
   return (
