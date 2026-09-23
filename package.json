@@ -27,7 +27,7 @@
     "package": "npm run package:mac",
     "package:mac": "node scripts/package-macos.mjs",
     "package:win": "npm run prepare:ffmpeg:win && npm run verify:release-assets && npm run build && electron-builder --win nsis --x64 --config electron-builder.yml --publish never",
-    "release:mac": "BLOCKOUT_PUBLISH=always node scripts/package-macos.mjs",
+    "release:mac": "node scripts/release-macos.mjs",
     "release:win": "npm run prepare:ffmpeg:win && npm run verify:release-assets && npm run build && electron-builder --win nsis --x64 --config electron-builder.yml --publish always"
   },
   "dependencies": {

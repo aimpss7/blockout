@@ -383,9 +383,10 @@ Initial GitHub Releases auto-update wiring exists:
 - Dev, smoke runs, and `BLOCKOUT_DISABLE_UPDATES=1` skip update checks.
 - `electron-builder.yml` publishes update metadata to `aimpss7/blockout` GitHub releases.
 - macOS now builds both `dmg` and `zip`; `latest-mac.yml` points to the zip payload first, as required by electron-updater/Squirrel.Mac.
-- `npm run release:mac` / `npm run release:win` publish release artifacts; normal `package:*` scripts still use `--publish never`.
+- `npm run release:mac` builds locally and then uploads the exact macOS assets through `gh release upload --clobber`; normal `package:*` scripts still use `--publish never`.
+- `v5.1.1` and `v5.1.2` GitHub releases were published. A real packaged `5.1.1` app found `5.1.2`, downloaded the zip, and handed it to Squirrel.Mac.
 
-Local `npm run package:mac` has produced `Blockout-5.1.1-mac-arm64.zip`, `.dmg`, blockmaps, and `latest-mac.yml`. `npm run release:mac` reaches the publish step but is blocked until `GH_TOKEN` is available; GitHub CLI on this machine has an invalid token. After auth is fixed, validate with a real version bump and GitHub release. macOS update installation may require a signed/notarized app for production distribution; the current builder config still has `identity: null`.
+Current blocker: install failed at Squirrel.Mac code-signature validation because the app is unsigned (`identity: null`) and this Mac has `0 valid identities found` from `security find-identity -v -p codesigning`. To complete automatic install on macOS, add a Developer ID Application certificate/signing setup and rebuild both old and new releases with the same valid signing identity. The GitHub discovery/download side is proven.
 
 ## 8. Tests added/changed
 
