@@ -10,6 +10,7 @@ test-results/
 playwright-report/
 coverage/
 *.local
+.handoff/
 vendor/ffmpeg/win-x64/
 vendor/ffmpeg/macos-*/
 

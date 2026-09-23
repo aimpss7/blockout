@@ -28,7 +28,8 @@
     "package:mac": "node scripts/package-macos.mjs",
     "package:win": "npm run prepare:ffmpeg:win && npm run verify:release-assets && npm run build && electron-builder --win nsis --x64 --config electron-builder.yml --publish never",
     "release:mac": "node scripts/release-macos.mjs",
-    "release:win": "npm run prepare:ffmpeg:win && npm run verify:release-assets && npm run build && electron-builder --win nsis --x64 --config electron-builder.yml --publish always"
+    "release:win": "npm run prepare:ffmpeg:win && npm run verify:release-assets && npm run build && electron-builder --win nsis --x64 --config electron-builder.yml --publish always",
+    "handoff:bundle": "node scripts/create-continuity-bundle.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",

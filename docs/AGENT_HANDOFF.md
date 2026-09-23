@@ -2,9 +2,9 @@
 
 > Branch: `feat/agent-director-v1`
 >
-> Read this first, then `AGENTS.md`, `docs/AGENT_DIRECTOR_ROADMAP.md`, and `mcp/README.md`.
+> Read this first, then `AGENTS.md`, `docs/CONTINUITY.md`, `docs/AGENT_DIRECTOR_ROADMAP.md`, and `mcp/README.md`.
 >
-> Status: substantial implementation exists, but the latest accumulated branch has **not yet had the required local Mac validation pass**. Do not assume typecheck/lint/tests/build/smoke are green until you run them.
+> Status: local Mac validation/fix pass and packaged-app QA smoke completed on 2026-09-23. `npm run typecheck`, `npm run lint`, `npm run build`, targeted manual/control smoke, packaged `.app` smoke, and full `npm run e2e` passed locally. Continue with small bug fixes only; do not add large new features before real workflow trials.
 
 ## 1. Product goal
 
@@ -287,9 +287,15 @@ shared Director control/compiler
 Blockout on the user's Mac
 ```
 
-The user already explored OpenAI `tunnel-client`, but **do not implement/finish Tunnel before the local app validation pass**.
+The user already explored OpenAI `tunnel-client`, but **do not implement/finish Tunnel before packaged-app user QA is stable**.
 
 The tunnel should expose the compact Director surface, not the full low-level catalog by default.
+
+For continuity when Codex context/tokens run out, prefer GitHub plus the Google Drive fallback bundle documented in `docs/CONTINUITY.md`:
+
+```bash
+npm run handoff:bundle
+```
 
 ## 6. Audit work already done
 
@@ -317,22 +323,20 @@ This audit is **not proof the branch compiles**. It was a static/source audit.
 
 ## 7. Known unfinished / high-risk areas
 
-### Highest priority: local validation
+### Completed: local validation and packaged smoke
 
-The accumulated branch has many commits and cross-layer changes. Run locally on Mac before adding more architecture:
+The accumulated branch had many commits and cross-layer changes. The local Mac validation/fix pass was completed on 2026-09-23:
 
 ```bash
-npm install
 npm run typecheck
 npm run lint
-npm test
 npm run build
-npm run smoke
+npm run e2e
 ```
 
-Fix failures before Tunnel work.
+Result: typecheck passed, lint passed, build passed, full e2e passed with 72 passing and 6 skipped readme screenshot tests.
 
-Also launch `npm run dev` and manually test:
+Targeted manual smoke also passed through:
 - create/select Workspace
 - new/open/save project
 - EN/RU switching
@@ -345,6 +349,19 @@ Also launch `npm run dev` and manually test:
 - Reference Cards
 - Shot Plan import/export round trip
 - Deliver/export
+
+Packaged `.app` QA smoke also passed from `release/mac-arm64/Blockout.app`:
+- app version `5.1.2`
+- project create/save/load
+- EN/RU switching
+- compact `get_state` camera marks
+- Director compile + camera recipe
+- Shot Plan export/import
+- review sheet + approved Hero Board
+- reference copy into `refs/`
+- Seedance export package with metadata and reference roles
+
+Next validation priority is real workflow trials, followed by narrow bug fixes only.
 
 ### IPC consistency
 
@@ -404,16 +421,16 @@ CI workflow includes the agent-director e2e in native smoke, but do not assume G
 
 Do this in order:
 
-1. **Run local Mac typecheck/lint/unit/build.**
-2. Fix compile/type/runtime integration errors.
-3. Run smoke/e2e, especially agent-director.
-4. Manual UI pass for Workspace → scene → camera → Hero → phase board → Deliver.
-5. Audit `project.json ↔ .shot.json ↔ MCP ↔ export` round-trip consistency.
+1. **Run real workflow trials**: ChatGPT/Codex builds a shot → Blockout renders phase board → review/revision → Seedance package.
+2. Fix only bugs found in real workflow trials.
+3. Re-run `npm run typecheck`, `npm run lint`, and relevant e2e/full e2e.
+4. Create a Google Drive handoff bundle with `npm run handoff:bundle` before any long pause or risky work.
+5. Audit `project.json ↔ .shot.json ↔ MCP ↔ export` round-trip consistency if real workflow trials expose drift.
 6. Finish remaining RU/EN visible strings.
 7. Finish compact Director UX only where it clearly reduces friction.
 8. Add retention cleanup for cache/dailies if needed.
 9. Only then connect `tunnel-client` and ChatGPT to the compact Director MCP.
-10. Test a real workflow: ChatGPT builds shot → Blockout renders phase board → ChatGPT reviews → revision → Seedance package.
+10. Test remote/local tunnel flow against the same compact Director MCP.
 
 ## 10. Product constraints to preserve
 
