@@ -1333,15 +1333,15 @@ export async function executeControlAction(action: string, params: Params = {}):
       requireDoc()
       const filePath = await window.blockout.pickFile([{ name: 'Blockout Shot Plan', extensions: ['json'] }])
       if (!filePath) return { cancelled: true }
-      return execute('import_shot_plan', { _expectedStateToken: currentStateToken(), filePath })
+      return executeControlAction('import_shot_plan', { _expectedStateToken: currentStateToken(), filePath })
     }
 
     case 'ui_export_shot_plan': {
-      return execute('export_shot_plan', { source: 'human' })
+      return executeControlAction('export_shot_plan', { source: 'human' })
     }
 
     case 'ui_save_visual_checkpoint': {
-      return execute('save_visual_checkpoint', {
+      return executeControlAction('save_visual_checkpoint', {
         _expectedStateToken: currentStateToken(),
         kind: str(params, 'kind') ?? 'daily',
         maxFrames: flt(params, 'maxFrames') ?? 8,

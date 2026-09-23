@@ -124,6 +124,7 @@ export const CAMERA_RECIPES: CameraRecipe[] = [
     shotFunction: 'Establish geography and scale at the start or end of a sequence.',
     defaultLens: 24,
     pacing: 'slow',
+    useCase: 'environment',
     description: 'Rises and recedes into a wide spatial overview.'
   },
   {
