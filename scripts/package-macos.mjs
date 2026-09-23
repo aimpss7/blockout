@@ -28,5 +28,5 @@ execFileSync(process.execPath, [
   '--config',
   'electron-builder.yml',
   '--publish',
-  'never'
+  process.env.BLOCKOUT_PUBLISH === 'always' ? 'always' : 'never'
 ], { cwd: root, env: process.env, stdio: 'inherit' })

@@ -11,6 +11,7 @@ import { mkdir, readFile, writeFile, copyFile, stat, rm, readdir } from 'fs/prom
 import { join, dirname, basename, extname, resolve, sep } from 'path'
 import { registerPresetsIpc } from './presets'
 import { startControlServer } from './control'
+import { configureAutoUpdates } from './updates'
 import { friendlyFfmpegError, resolveFfmpeg, terminateProcessTree } from './ffmpeg'
 import { sanitizeName } from '../engine/strings'
 import { ffmpegConcatEntry, normalizeProjectRelativePath } from '../shared/portable-paths'
@@ -58,6 +59,7 @@ app.whenReady().then(() => {
   createWindow()
   registerPresetsIpc()
   void startControlServer(() => mainWindow)
+  configureAutoUpdates(() => mainWindow)
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })

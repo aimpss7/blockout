@@ -376,6 +376,16 @@ Workspace exists, but project browsing/management can be improved later. Do not 
 
 History is compact, snapshots are manual/restore safety points. A future retention policy may be useful.
 
+### GitHub auto-update path
+
+Initial GitHub Releases auto-update wiring exists:
+- `src/main/updates.ts` configures `electron-updater` only for packaged apps.
+- Dev, smoke runs, and `BLOCKOUT_DISABLE_UPDATES=1` skip update checks.
+- `electron-builder.yml` publishes update metadata to `aimpss7/blockout` GitHub releases.
+- `npm run release:mac` / `npm run release:win` publish release artifacts; normal `package:*` scripts still use `--publish never`.
+
+This is not yet end-to-end proven. Validate with a real version bump and GitHub release. macOS update installation may require a signed/notarized app for production distribution; the current builder config still has `identity: null`.
+
 ## 8. Tests added/changed
 
 Relevant tests include:

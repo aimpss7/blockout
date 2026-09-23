@@ -3,6 +3,10 @@ appId: com.wassermanproductions.blockout
 productName: Blockout
 # Package scripts run redistribution audits before electron-builder. Windows
 # uses the pinned BtbN GPL pair; macOS builds the pinned GPL pair from source.
+publish:
+  provider: github
+  owner: aimpss7
+  repo: blockout
 directories:
   output: release
 artifactName: ${productName}-${version}-${os}-${arch}.${ext}
