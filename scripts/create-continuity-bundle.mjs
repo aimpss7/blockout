@@ -35,6 +35,7 @@ function copyIfExists(from, toDir) {
 const branch = git(['branch', '--show-current'], 'unknown')
 const commit = git(['rev-parse', 'HEAD'], 'unknown')
 const shortCommit = commit.slice(0, 12)
+const safeBranch = (branch || 'branch').replace(/[^a-zA-Z0-9._-]+/g, '-')
 const remote = git(['remote', 'get-url', 'origin'], 'unknown')
 const status = git(['status', '--short', '--branch'], 'git status unavailable')
 const outRoot = defaultOutputRoot()
@@ -56,7 +57,7 @@ copyIfExists('docs/AGENT_DIRECTOR_ROADMAP.md', join(outDir, 'docs'))
 copyIfExists('docs/CONTINUITY.md', join(outDir, 'docs'))
 copyIfExists('mcp/README.md', outDir)
 
-const bundlePath = join(outDir, `blockout-${branch || 'branch'}-${shortCommit}.bundle`)
+const bundlePath = join(outDir, `blockout-${safeBranch}-${shortCommit}.bundle`)
 try {
   execFileSync('git', ['bundle', 'create', bundlePath, '--all'], { cwd: root, stdio: 'ignore' })
 } catch (error) {
