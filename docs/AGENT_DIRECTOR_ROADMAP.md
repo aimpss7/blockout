@@ -1,3 +1,7 @@
+# Agent Director roadmap
+
+> **Continuation / handoff:** `docs/AGENT_HANDOFF.md` is the current source for implementation status, known risks, and next-agent priorities.
+
 # Agent Director implementation roadmap
 
 This fork keeps Blockout as the deterministic previs engine and adds a thin
