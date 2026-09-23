@@ -2,6 +2,8 @@
 
 # AGENTS.md — running & modifying Blockout with an AI agent
 
+> **Current fork handoff:** read `docs/AGENT_HANDOFF.md` before continuing `feat/agent-director-v1`. It records implemented work, audit findings, unverified areas, and the required validation sequence.
+
 This file is the single source of truth for AI coding agents (Claude Code, Codex, Hermes, OpenClaw, …) working on this repo. `CLAUDE.md` points here.
 
 ## What this app is
