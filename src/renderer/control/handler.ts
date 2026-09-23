@@ -159,20 +159,17 @@ function summary(detail: 'compact' | 'full' = 'compact'): unknown {
             : null,
           trackEntityId: shot.camera.trackEntityId ?? null,
           cameraMarkCount: shot.camera.marks.length,
-          cameraMarks:
-            detail === 'full'
-              ? shot.camera.marks.map((m, i) => ({
-                  index: i + 1,
-                  time: m.time,
-                  x: m.position.x,
-                  y: m.position.y,
-                  z: m.position.z,
-                  panDeg: toDeg(m.pan),
-                  tiltDeg: toDeg(m.tilt),
-                  rollDeg: toDeg(m.roll),
-                  focalLength: m.focalLength
-                }))
-              : undefined,
+          cameraMarks: shot.camera.marks.map((m, i) => ({
+            index: i + 1,
+            time: m.time,
+            x: m.position.x,
+            y: m.position.y,
+            z: m.position.z,
+            panDeg: toDeg(m.pan),
+            tiltDeg: toDeg(m.tilt),
+            rollDeg: toDeg(m.roll),
+            focalLength: m.focalLength
+          })),
           actorTracks:
             detail === 'full'
               ? (take?.tracks ?? []).map((track) => ({
