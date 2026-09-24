@@ -82,9 +82,35 @@ No `env`, no headers, no URL — the bridge discovers the running app on its own
 
 ---
 
-## Tools
+## Director mode (default)
 
-33 tools. Coordinates are in **meters**: `+X` right, `−Z` forward/away from the default camera; **heading 0 faces −Z**; `rotationDeg` / `panDeg` are clockwise seen from above; `tiltDeg` is positive up. Focal lengths are mm on Super 35 (24 wide, 35 normal, 50–85 tight).
+This fork exposes a deliberately small **16-tool** catalog by default so an LLM
+does not spend context on dozens of low-level schemas. A normal shot is expected
+to use `get_state → compile_shot → review_shot → approve_hero_frame → export_shot`.
+
+Set `BLOCKOUT_MCP_FULL_TOOLS=1` before launching the MCP bridge to expose the
+full **48-tool** Blockout catalog for advanced/manual operations.
+
+Mutating director tools use the `stateToken` returned by `get_state` (and
+`review_shot`) to reject stale writes after a human has changed the project.
+
+## Director workflow
+
+The default agent path is deliberately short:
+
+1. `get_state` — read the compact scene and state token.
+2. `compile_shot` — one high-level scene/blocking/camera plan.
+3. `review_shot` — inspect one multi-frame sheet, not many screenshots.
+4. `approve_hero_frame` — explicitly freeze the representative composition.
+5. `export_shot` — export the Seedance/reference package.
+
+Optional: `import_motion_previs_camera` turns a Motion Previs Studio `camera_motion.json` into editable Blockout camera marks before review/approval.
+
+`set_human_locks` can additionally protect staging or selected blocking tracks.
+`replace_scene` and the low-level entity/mark tools remain available in full
+mode only.
+
+48 tools in full mode; director mode exposes 16. Coordinates are in **meters**: `+X` right, `−Z` forward/away from the default camera; **heading 0 faces −Z**; `rotationDeg` / `panDeg` are clockwise seen from above; `tiltDeg` is positive up. Focal lengths are mm on Super 35 (24 wide, 35 normal, 50–85 tight).
 
 | Tool | Params | Does |
 |---|---|---|

@@ -7,10 +7,11 @@
 
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron'
 import { spawn, type ChildProcess } from 'child_process'
-import { mkdir, readFile, writeFile, copyFile, stat, rm } from 'fs/promises'
+import { mkdir, readFile, writeFile, copyFile, stat, rm, readdir } from 'fs/promises'
 import { join, dirname, basename, extname, resolve, sep } from 'path'
 import { registerPresetsIpc } from './presets'
 import { startControlServer } from './control'
+import { configureAutoUpdates } from './updates'
 import { friendlyFfmpegError, resolveFfmpeg, terminateProcessTree } from './ffmpeg'
 import { sanitizeName } from '../engine/strings'
 import { ffmpegConcatEntry, normalizeProjectRelativePath } from '../shared/portable-paths'
@@ -58,6 +59,7 @@ app.whenReady().then(() => {
   createWindow()
   registerPresetsIpc()
   void startControlServer(() => mainWindow)
+  configureAutoUpdates(() => mainWindow)
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
@@ -69,28 +71,101 @@ app.on('window-all-closed', () => {
 
 /* --------------------------------- IPC ---------------------------------- */
 
+/* ------------------------------ workspace ------------------------------- */
+
+interface WorkspaceSettings {
+  root: string | null
+  language: 'en' | 'ru'
+}
+
+const workspaceSettingsPath = (): string => join(app.getPath('userData'), 'workspace.json')
+
+async function readWorkspaceSettings(): Promise<WorkspaceSettings> {
+  try {
+    const raw = JSON.parse(await readFile(workspaceSettingsPath(), 'utf-8')) as Partial<WorkspaceSettings>
+    return {
+      root: typeof raw.root === 'string' && raw.root ? raw.root : null,
+      language: raw.language === 'ru' ? 'ru' : 'en'
+    }
+  } catch {
+    return { root: null, language: 'en' }
+  }
+}
+
+async function writeWorkspaceSettings(settings: WorkspaceSettings): Promise<void> {
+  await mkdir(dirname(workspaceSettingsPath()), { recursive: true })
+  await writeFile(workspaceSettingsPath(), JSON.stringify(settings, null, 2) + '\n', 'utf-8')
+}
+
+async function ensureProjectLayout(folder: string): Promise<void> {
+  for (const rel of [
+    'assets',
+    'refs',
+    'plans',
+    'exports',
+    'history/snapshots',
+    'reviews/cache',
+    'reviews/dailies',
+    'reviews/hero'
+  ]) {
+    await mkdir(join(folder, rel), { recursive: true })
+  }
+}
+
+ipcMain.handle('workspace:get', async () => readWorkspaceSettings())
+
+ipcMain.handle('workspace:choose', async () => {
+  if (!mainWindow) return null
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Choose Blockout Workspace',
+    properties: ['openDirectory', 'createDirectory'],
+    message: 'All Blockout project folders will live inside this workspace.'
+  })
+  if (result.canceled || result.filePaths.length === 0) return null
+  const settings = await readWorkspaceSettings()
+  settings.root = result.filePaths[0]!
+  await writeWorkspaceSettings(settings)
+  return settings
+})
+
+ipcMain.handle('workspace:setLanguage', async (_e, language: 'en' | 'ru') => {
+  const settings = await readWorkspaceSettings()
+  settings.language = language === 'ru' ? 'ru' : 'en'
+  await writeWorkspaceSettings(settings)
+  return settings
+})
+
 ipcMain.handle('dialog:newProject', async () => {
-  // Smoke-test hook: bypass the native dialog so CI can drive the app.
   if (process.env.BLOCKOUT_SMOKE_DIR) {
     const folder = join(process.env.BLOCKOUT_SMOKE_DIR, 'Smoke.blockout')
-    await mkdir(join(folder, 'assets'), { recursive: true })
-    await mkdir(join(folder, 'exports'), { recursive: true })
+    await ensureProjectLayout(folder)
     return { folder, name: 'Smoke' }
   }
   if (!mainWindow) return null
+  const settings = await readWorkspaceSettings()
+  let root = settings.root
+  if (!root) {
+    const picked = await dialog.showOpenDialog(mainWindow, {
+      title: 'Choose Blockout Workspace',
+      properties: ['openDirectory', 'createDirectory'],
+      message: 'Choose one folder that will contain all Blockout projects.'
+    })
+    if (picked.canceled || picked.filePaths.length === 0) return null
+    root = picked.filePaths[0]!
+    settings.root = root
+    await writeWorkspaceSettings(settings)
+  }
   const result = await dialog.showSaveDialog(mainWindow, {
     title: 'Create Blockout Project',
     buttonLabel: 'Create',
     nameFieldLabel: 'Project name',
-    defaultPath: join(app.getPath('documents'), 'Untitled.blockout')
+    defaultPath: join(root, 'Untitled.blockout')
   })
   if (result.canceled || !result.filePath) return null
   const withoutExtension = result.filePath.replace(/\.blockout$/i, '')
   const name = sanitizeName(basename(withoutExtension))
-  const folder = join(dirname(withoutExtension), `${name}.blockout`)
-  await mkdir(folder, { recursive: true })
-  await mkdir(join(folder, 'assets'), { recursive: true })
-  await mkdir(join(folder, 'exports'), { recursive: true })
+  const folder = join(root, `${name}.blockout`)
+  await ensureProjectLayout(folder)
   return { folder, name }
 })
 
@@ -117,10 +192,108 @@ ipcMain.handle('dialog:pickFile', async (_e, filters: { name: string; extensions
 
 ipcMain.handle('project:save', async (_e, folder: string, json: string) => {
   await mkdir(folder, { recursive: true })
+  await mkdir(join(folder, 'history', 'snapshots'), { recursive: true })
   // Atomic-ish write: temp file then rename would be ideal; write+fsync is
   // acceptable here since autosave keeps a rolling backup too.
   await writeFile(join(folder, 'project.json'), json, 'utf-8')
+  const stamp = new Date().toISOString()
+  await writeFile(
+    join(folder, 'history', 'events.jsonl'),
+    JSON.stringify({ at: stamp, type: 'save', source: 'human', file: 'project.json' }) + '\n',
+    { encoding: 'utf-8', flag: 'a' }
+  )
   return true
+})
+
+ipcMain.handle(
+  'project:historyEvent',
+  async (
+    _e,
+    folder: string,
+    event: { type: string; source: string; label?: string; sceneId?: string | null; shotId?: string | null }
+  ) => {
+    await mkdir(join(folder, 'history'), { recursive: true })
+    await writeFile(
+      join(folder, 'history', 'events.jsonl'),
+      JSON.stringify({ at: new Date().toISOString(), ...event }) + '\n',
+      { encoding: 'utf-8', flag: 'a' }
+    )
+    return true
+  }
+)
+
+ipcMain.handle('project:snapshot', async (_e, folder: string, json: string, reason: string) => {
+  const dir = join(folder, 'history', 'snapshots')
+  await mkdir(dir, { recursive: true })
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const safeReason = sanitizeName(reason || 'snapshot')
+  const path = join(dir, `${stamp}-${safeReason}.json`)
+  await writeFile(path, json, 'utf-8')
+  await writeFile(
+    join(folder, 'history', 'events.jsonl'),
+    JSON.stringify({ at: new Date().toISOString(), type: 'snapshot', source: 'system', reason, file: basename(path) }) + '\n',
+    { encoding: 'utf-8', flag: 'a' }
+  )
+  return { path }
+})
+
+ipcMain.handle('project:listSnapshots', async (_e, folder: string) => {
+  const dir = join(folder, 'history', 'snapshots')
+  try {
+    const names = (await readdir(dir)).filter((name) => name.endsWith('.json')).sort().reverse()
+    return await Promise.all(
+      names.map(async (name) => {
+        const path = join(dir, name)
+        const info = await stat(path)
+        return { name, path, savedAt: info.mtime.toISOString(), bytes: info.size }
+      })
+    )
+  } catch {
+    return []
+  }
+})
+
+ipcMain.handle('project:readSnapshot', async (_e, folder: string, path: string) => {
+  const base = resolve(folder, 'history', 'snapshots')
+  const full = resolve(path)
+  if (!full.startsWith(base + sep)) throw new Error('snapshot path escapes project history')
+  return readFile(full, 'utf-8')
+})
+
+ipcMain.handle('project:recentHistory', async (_e, folder: string, limit = 30) => {
+  const safeLimit = Math.min(200, Math.max(1, Math.round(Number(limit) || 30)))
+  try {
+    const raw = await readFile(join(folder, 'history', 'events.jsonl'), 'utf-8')
+    return raw
+      .split('\n')
+      .filter(Boolean)
+      .slice(-safeLimit)
+      .map((line) => {
+        try {
+          return JSON.parse(line) as Record<string, unknown>
+        } catch {
+          return { type: 'malformed-history-line', raw: line }
+        }
+      })
+  } catch {
+    return []
+  }
+})
+
+ipcMain.handle('project:listReviews', async (_e, folder: string) => {
+  const out: { kind: 'daily' | 'hero'; name: string; path: string; savedAt: string; bytes: number }[] = []
+  for (const kind of ['daily', 'hero'] as const) {
+    const dir = join(folder, 'reviews', kind === 'daily' ? 'dailies' : 'hero')
+    try {
+      const names = (await readdir(dir)).filter((name) => name.endsWith('.webp')).sort().reverse()
+      for (const name of names) {
+        const path = join(dir, name)
+        const info = await stat(path)
+        out.push({ kind, name, path, savedAt: info.mtime.toISOString(), bytes: info.size })
+      }
+    } catch {}
+  }
+  return out.sort((a, b) => b.savedAt.localeCompare(a.savedAt))
 })
 
 ipcMain.handle('project:saveBackup', async (_e, folder: string, json: string) => {
@@ -187,6 +360,16 @@ ipcMain.handle('project:importReference', async (_e, folder: string, sourcePath:
   const dest = join(refsDir, name)
   await copyFile(sourcePath, dest)
   return { relativePath: `refs/${name}`, name: sanitizeName(basename(sourcePath, extname(sourcePath))) }
+})
+
+ipcMain.handle('project:importPlan', async (_e, folder: string, sourcePath: string) => {
+  const plansDir = join(folder, 'plans')
+  await mkdir(plansDir, { recursive: true })
+  const sourceName = sanitizeName(basename(sourcePath))
+  const name = sanitizeName(`${Date.now().toString(36)}-${sourceName}`)
+  const dest = join(plansDir, name)
+  await copyFile(sourcePath, dest)
+  return { relativePath: `plans/${name}`, name: sanitizeName(basename(sourcePath, extname(sourcePath))) }
 })
 
 ipcMain.handle('file:readAbsolute', async (_e, folder: string, relativePath: string) => {

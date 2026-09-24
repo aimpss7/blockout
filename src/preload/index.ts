@@ -16,10 +16,23 @@ export interface PlatformInfo {
 
 export interface BlockoutAPI {
   readonly platform: PlatformInfo
+  workspaceGet(): Promise<{ root: string | null; language: 'en' | 'ru' }>
+  workspaceChoose(): Promise<{ root: string | null; language: 'en' | 'ru' } | null>
+  workspaceSetLanguage(language: 'en' | 'ru'): Promise<{ root: string | null; language: 'en' | 'ru' }>
   newProjectDialog(): Promise<{ folder: string; name: string } | null>
   openProjectDialog(): Promise<string | null>
   pickFile(filters: { name: string; extensions: string[] }[]): Promise<string | null>
   saveProject(folder: string, json: string): Promise<boolean>
+  appendHistoryEvent(
+    folder: string,
+    event: { type: string; source: string; label?: string; sceneId?: string | null; shotId?: string | null }
+  ): Promise<boolean>
+  saveSnapshot(folder: string, json: string, reason: string): Promise<{ path: string }>
+  listSnapshots(folder: string): Promise<{ name: string; path: string; savedAt: string; bytes: number }[]>
+  recentHistory(folder: string, limit?: number): Promise<Record<string, unknown>[]>
+  readSnapshot(folder: string, path: string): Promise<string>
+  importPlan(folder: string, sourcePath: string): Promise<{ relativePath: string; name: string }>
+  listReviewArtifacts(folder: string): Promise<{ kind: 'daily' | 'hero'; name: string; path: string; savedAt: string; bytes: number }[]>
   saveBackup(folder: string, json: string): Promise<boolean>
   loadProject(folder: string): Promise<{
     json: string | null
@@ -95,10 +108,20 @@ const platform: PlatformInfo = {
 
 const api: BlockoutAPI = {
   platform,
+  workspaceGet: () => ipcRenderer.invoke('workspace:get'),
+  workspaceChoose: () => ipcRenderer.invoke('workspace:choose'),
+  workspaceSetLanguage: (language) => ipcRenderer.invoke('workspace:setLanguage', language),
   newProjectDialog: () => ipcRenderer.invoke('dialog:newProject'),
   openProjectDialog: () => ipcRenderer.invoke('dialog:openProject'),
   pickFile: (filters) => ipcRenderer.invoke('dialog:pickFile', filters),
   saveProject: (folder, json) => ipcRenderer.invoke('project:save', folder, json),
+  appendHistoryEvent: (folder, event) => ipcRenderer.invoke('project:historyEvent', folder, event),
+  saveSnapshot: (folder, json, reason) => ipcRenderer.invoke('project:snapshot', folder, json, reason),
+  listSnapshots: (folder) => ipcRenderer.invoke('project:listSnapshots', folder),
+  recentHistory: (folder, limit) => ipcRenderer.invoke('project:recentHistory', folder, limit),
+  readSnapshot: (folder, path) => ipcRenderer.invoke('project:readSnapshot', folder, path),
+  importPlan: (folder, sourcePath) => ipcRenderer.invoke('project:importPlan', folder, sourcePath),
+  listReviewArtifacts: (folder) => ipcRenderer.invoke('project:listReviews', folder),
   saveBackup: (folder, json) => ipcRenderer.invoke('project:saveBackup', folder, json),
   loadProject: (folder) => ipcRenderer.invoke('project:load', folder),
   importAsset: (folder, sourcePath) => ipcRenderer.invoke('project:importAsset', folder, sourcePath),

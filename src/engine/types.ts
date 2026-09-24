@@ -64,11 +64,11 @@ export type SensorId = 'super16' | 'super35' | 'fullFrame' | 'imax65'
 
 export type ShotSizeId = 'EWS' | 'WS' | 'FS' | 'MS' | 'MCU' | 'CU' | 'ECU'
 
-export type AspectId = '16:9' | '9:16' | '2.39:1' | '4:3' | '1:1'
+export type AspectId = '16:9' | '9:16' | '3:4' | '4:5' | '2.39:1' | '4:3' | '1:1'
 
 export interface Label {
   text: string
-  /** Hex color like '#e5484d'; tints the model and colors marks/labels. */
+  /** Hex color like '#e5484d'; used for label text plus blocking marks/paths. */
   color: string
 }
 
@@ -88,6 +88,8 @@ export interface Entity {
   transform: Transform
   /** Per-asset parameters (height/build sliders, color variants). */
   params?: Record<string, number | string>
+  /** Simple matte viewport/export color. Independent from label/path color. */
+  color?: string
   /** For custom imports: path relative to project assets/ dir. */
   sourceFile?: string
   /**
@@ -195,6 +197,36 @@ export interface ReferenceVideo {
   timeOffset: number
 }
 
+export interface ShotDirectorLocks {
+  /** Agent tools may not replace/reframe the camera while true. Manual UI remains authoritative. */
+  camera?: boolean
+  /** Preserve focal length even when a camera recipe suggests a lens. */
+  lens?: boolean
+  /** Protect composition/framing decisions from agent camera recipes. */
+  framing?: boolean
+  /** Protect scene-level placement from atomic agent shot-plan replacement. */
+  staging?: boolean
+  /** Entity ids whose actor tracks may not be replaced by agent shot plans. */
+  blockingEntityIds?: string[]
+}
+
+export interface ShotDirectorState {
+  /** Human-readable directing intention, e.g. "quiet reveal" or "menacing approach". */
+  intent?: string
+  /** Last high-level camera recipe applied by the agent. */
+  cameraRecipeId?: string
+  /** Entity the last high-level camera recipe was built around. */
+  cameraSubjectEntityId?: string
+  /** Project-relative provenance for a Motion Previs camera_motion.json import. */
+  measuredCameraSource?: string
+  /** Representative frame used as the visual approval gate. */
+  heroFrameTime?: number
+  /** True only after an explicit human/agent approval action. */
+  heroFrameApproved?: boolean
+  /** Agent-only mutation guards. Manual UI remains the source of truth. */
+  locks?: ShotDirectorLocks
+}
+
 export interface Shot {
   id: string
   /** Film-style name, e.g. '1A'. */
@@ -210,6 +242,8 @@ export interface Shot {
   /** Inactive cameras — switch via the camera inspector (Cam A/B/C chips). */
   cameraBank?: { name: string; camera: ShotCamera }[]
   notes?: string
+  /** Optional directing/approval metadata used by the agent-first workflow. */
+  director?: ShotDirectorState
   referenceVideo?: ReferenceVideo
   /** Set on shots living in scene.drafts: the main shot this is a version of. */
   draftOf?: string
@@ -276,6 +310,19 @@ export interface Scene {
   drafts?: Shot[]
 }
 
+export type ReferenceRole = 'character' | 'product' | 'location' | 'style' | 'motion'
+
+export interface ProjectReferenceCard {
+  id: string
+  role: ReferenceRole
+  name: string
+  /** Project-relative path under refs/. */
+  relativePath: string
+  note?: string
+  createdAt: string
+  subjectKey?: string
+}
+
 export interface ProjectDoc {
   /** Schema version for forward migration. */
   version: 1
@@ -284,6 +331,8 @@ export interface ProjectDoc {
   settings: {
     defaultProfileId: string
   }
+  /** Semantic external references used by downstream AI generation. */
+  references?: ProjectReferenceCard[]
   scenes: Scene[]
 }
 

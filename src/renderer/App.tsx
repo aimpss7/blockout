@@ -4,7 +4,7 @@
  * Stage/Shoot/Deliver layouts, global keyboard map, and autosave.
  */
 
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useStore, currentProjectJson } from './store'
 import { Viewport } from './viewport/Viewport'
 import { Library } from './panels/Library'
@@ -16,6 +16,7 @@ import { Toasts } from './panels/Toasts'
 import { HelpOverlay, BlockingCoach } from './panels/Help'
 import logoUrl from './assets/logo.png'
 import { DISTRIBUTION } from '../shared/distribution'
+import { LanguageContext, uiText, type UiLanguage } from './i18n'
 
 const PLATFORM_CLASS = `platform-${window.blockout.platform.platform}`
 
@@ -68,8 +69,13 @@ export function Credits({ compact = false }: { compact?: boolean }): JSX.Element
   )
 }
 
-function Welcome(): JSX.Element {
+function Welcome({ language }: { language: UiLanguage }): JSX.Element {
   const newProject = useStore((s) => s.newProject)
+  const [workspace, setWorkspace] = useState<string | null>(null)
+
+  useEffect(() => {
+    void window.blockout.workspaceGet().then((settings) => setWorkspace(settings.root))
+  }, [])
   const loadFromJson = useStore((s) => s.loadFromJson)
   const toast = useStore((s) => s.toast)
 
@@ -115,13 +121,27 @@ function Welcome(): JSX.Element {
       </p>
       <div className="actions">
         <button className="btn primary" onClick={onNew}>
-          New Project
+          {uiText(language, 'newProject')}
         </button>
         <button className="btn" onClick={onOpen}>
-          Open Project…
+          {uiText(language, 'openProject')}
         </button>
         <button className="btn" onClick={() => useStore.getState().setHelpOpen(true)}>
-          ? Tutorial
+          ? {uiText(language, 'tutorial')}
+        </button>
+      </div>
+      <div style={{ marginTop: 18, color: 'var(--text-faint)', fontSize: 11, textAlign: 'center' }}>
+        <div>{workspace ? `${uiText(language, 'workspace')}: ${workspace}` : uiText(language, 'workspaceMissing')}</div>
+        <button
+          className="btn small"
+          style={{ marginTop: 6 }}
+          onClick={() =>
+            void window.blockout.workspaceChoose().then((settings) => {
+              if (settings) setWorkspace(settings.root)
+            })
+          }
+        >
+          {uiText(language, 'changeWorkspace')}
         </button>
       </div>
       <Credits />
@@ -212,9 +232,15 @@ export function App(): JSX.Element {
   const dirty = useStore((s) => s.dirty)
   const markSaved = useStore((s) => s.markSaved)
   const folder = useStore((s) => s.projectFolder)
+  const [language, setLanguage] = useState<'en' | 'ru'>('en')
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [snapshots, setSnapshots] = useState<{ name: string; path: string; savedAt: string; bytes: number }[]>([])
 
   useAutosave()
   useKeyboard()
+  useEffect(() => {
+    void window.blockout.workspaceGet().then((settings) => setLanguage(settings.language))
+  }, [])
 
   const onSave = useCallback(async () => {
     const json = currentProjectJson()
@@ -224,20 +250,58 @@ export function App(): JSX.Element {
     }
   }, [folder, markSaved])
 
+  const onSnapshot = useCallback(async () => {
+    const json = currentProjectJson()
+    if (!json || !folder) return
+    await window.blockout.saveSnapshot(folder, json, 'manual-checkpoint')
+    useStore.getState().toast('Project checkpoint saved.', 'success')
+  }, [folder])
+
+  const openHistory = useCallback(async () => {
+    if (!folder) return
+    setSnapshots(await window.blockout.listSnapshots(folder))
+    setHistoryOpen(true)
+  }, [folder])
+
+  const restoreSnapshot = useCallback(
+    async (path: string) => {
+      if (!folder) return
+      const current = currentProjectJson()
+      if (current) await window.blockout.saveSnapshot(folder, current, 'before-restore')
+      const json = await window.blockout.readSnapshot(folder, path)
+      if (useStore.getState().loadFromJson(folder, json)) {
+        useStore.setState({ dirty: true })
+        void window.blockout.appendHistoryEvent(folder, {
+          type: 'restore',
+          source: 'human',
+          label: path,
+          sceneId: useStore.getState().sceneId,
+          shotId: useStore.getState().shotId
+        })
+        setHistoryOpen(false)
+        useStore.getState().toast('Checkpoint restored. Save to make it current.', 'success')
+      }
+    },
+    [folder]
+  )
+
   if (!doc) {
     return (
+      <LanguageContext.Provider value={language}>
       <div className={`app ${PLATFORM_CLASS}`}>
         <div className="titlebar">
           <span className="app-name">BLOCKOUT</span>
         </div>
-        <Welcome />
+        <Welcome language={language} />
         <Toasts />
         <HelpOverlay />
       </div>
+    </LanguageContext.Provider>
     )
   }
 
   return (
+    <LanguageContext.Provider value={language}>
     <div className={`app ${PLATFORM_CLASS}`}>
       <div className="titlebar">
         <span className="app-name">BLOCKOUT</span>
@@ -247,24 +311,43 @@ export function App(): JSX.Element {
         </span>
         <div className="mode-switch">
           <button className={mode === 'stage' ? 'active' : ''} onClick={() => setMode('stage')}>
-            STAGE
+            {uiText(language, 'stage')}
           </button>
           <button className={mode === 'shoot' ? 'active' : ''} onClick={() => setMode('shoot')}>
-            SHOOT
+            {uiText(language, 'shoot')}
           </button>
           <button className={mode === 'deliver' ? 'active' : ''} onClick={() => setMode('deliver')}>
-            DELIVER
+            {uiText(language, 'deliver')}
           </button>
         </div>
         <button className="btn small" onClick={onSave}>
-          Save
+          {uiText(language, 'save')}
         </button>
+        <button className="btn small" onClick={onSnapshot} title="Save a timestamped project checkpoint">
+          {uiText(language, 'checkpoint')}
+        </button>
+        <button className="btn small" onClick={openHistory} title="Browse project checkpoints">
+          {uiText(language, 'history')}
+        </button>
+        <select
+          className="language-select"
+          value={language}
+          title={uiText(language, 'interfaceLanguage')}
+          onChange={(e) => {
+            const next = e.target.value === 'ru' ? 'ru' : 'en'
+            setLanguage(next)
+            void window.blockout.workspaceSetLanguage(next)
+          }}
+        >
+          <option value="en">EN</option>
+          <option value="ru">RU</option>
+        </select>
         <button
           className="btn small"
           title="Help: quick start, how-do-I answers, shortcuts (?)"
           onClick={() => useStore.getState().setHelpOpen(true)}
         >
-          ? Help
+          ? {uiText(language, 'help')}
         </button>
       </div>
 
@@ -296,6 +379,31 @@ export function App(): JSX.Element {
       <Toasts />
       <HelpOverlay />
       <BlockingCoach />
+      {historyOpen && (
+        <div className="help-backdrop" onMouseDown={() => setHistoryOpen(false)}>
+          <div className="history-modal" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="history-header">
+              <b>{uiText(language, 'projectCheckpoints')}</b>
+              <button className="btn small" onClick={() => setHistoryOpen(false)}>{uiText(language, 'close')}</button>
+            </div>
+            <div className="history-list">
+              {snapshots.length === 0 && <div className="history-empty">{uiText(language, 'noCheckpoints')}</div>}
+              {snapshots.map((item) => (
+                <div className="history-item" key={item.path}>
+                  <div>
+                    <div className="history-name">{item.name}</div>
+                    <div className="history-meta">
+                      {new Date(item.savedAt).toLocaleString()} · {Math.max(1, Math.round(item.bytes / 1024))} KB
+                    </div>
+                  </div>
+                  <button className="btn small" onClick={() => void restoreSnapshot(item.path)}>{uiText(language, 'restore')}</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+    </LanguageContext.Provider>
   )
 }

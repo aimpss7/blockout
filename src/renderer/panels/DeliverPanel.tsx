@@ -6,7 +6,7 @@
 
 import { useMemo, useState } from 'react'
 import { useStore } from '../store'
-import { BUILTIN_PROFILES, getProfile } from '@engine/profiles'
+import { BUILTIN_PROFILES, getProfile, profileSupportsAspect } from '@engine/profiles'
 import { generatePrompt } from '@engine/prompt'
 import {
   exportShot,
@@ -17,8 +17,11 @@ import {
   type ExportResolution
 } from '../export/exporter'
 import { exportGlb } from '../export/gltf'
+import { executeControlAction } from '../control/handler'
+import { uiText, useUiLanguage } from '../i18n'
 
 export function DeliverPanel(): JSX.Element {
+  const language = useUiLanguage()
   const doc = useStore((s) => s.doc)
   const sceneId = useStore((s) => s.sceneId)
   const shotId = useStore((s) => s.shotId)
@@ -30,10 +33,11 @@ export function DeliverPanel(): JSX.Element {
   const scene = doc?.scenes.find((s) => s.id === sceneId)
   const shot = scene?.shots.find((s) => s.id === shotId)
 
-  const [profileId, setProfileId] = useState(doc?.settings.defaultProfileId ?? 'seedance-2')
-  const [passes, setPasses] = useState({ clean: true, depth: true, normal: false })
+  const [profileId, setProfileId] = useState(doc?.settings.defaultProfileId ?? 'seedance-2.5')
+  const [passes, setPasses] = useState({ clean: true, depth: false, normal: false })
   const [labels, setLabels] = useState<'on' | 'stillsOnly' | 'off'>('stillsOnly')
   const [resolution, setResolution] = useState<ExportResolution>('auto')
+  const [reviews, setReviews] = useState<{ kind: 'daily' | 'hero'; name: string; path: string; savedAt: string; bytes: number }[]>([])
 
   const profile = getProfile(profileId)
   const prompt = useMemo(
@@ -52,6 +56,7 @@ export function DeliverPanel(): JSX.Element {
 
   const dims = exportDims(profile, shot.aspect, resolution)
   const overCap = profile.maxDuration !== undefined && shot.duration > profile.maxDuration
+  const unsupportedAspect = !profileSupportsAspect(profile, shot.aspect)
   const pct =
     progress.totalFrames > 0 ? Math.round((progress.frame / progress.totalFrames) * 100) : 0
 
@@ -91,6 +96,13 @@ export function DeliverPanel(): JSX.Element {
       <p style={{ color: 'var(--text-dim)', fontSize: 12, marginBottom: 12, lineHeight: 1.5 }}>
         {profile.attachHint}
       </p>
+
+      {unsupportedAspect && (
+        <div className="warning-chip" style={{ marginBottom: 10 }}>
+          ⚠ {profile.name} does not declare native support for {shot.aspect}. Export can still be created,
+          but the target generator may crop or reinterpret the frame.
+        </div>
+      )}
 
       {overCap && (
         <div className="warning-chip" style={{ marginBottom: 10 }}>
@@ -231,6 +243,134 @@ export function DeliverPanel(): JSX.Element {
       >
         Copy prompt
       </button>
+
+      <div className="panel-title">{uiText(language, 'references')}</div>
+      <p style={{ color: 'var(--text-faint)', fontSize: 11, lineHeight: 1.45, marginBottom: 8 }}>
+        Keep identity/look references separate from motion. These roles are carried into the project and downstream handoff.
+      </p>
+      <div className="reference-card-grid">
+        {(['character', 'product', 'location', 'style', 'motion'] as const).map((role) => {
+          const count = doc?.references?.filter((ref) => ref.role === role).length ?? 0
+          return (
+            <button
+              key={role}
+              className="reference-role-card"
+              onClick={() => {
+                void window.blockout
+                  .pickFile([{ name: `${role} reference`, extensions: ['jpg', 'jpeg', 'png', 'webp', 'mp4', 'mov'] }])
+                  .then(async (path) => {
+                    if (!path) return
+                    const folder = useStore.getState().projectFolder
+                    if (!folder) return
+                    const imported = await window.blockout.importReference(folder, path)
+                    mutate('add reference card', (project) => {
+                      project.references = project.references ?? []
+                      project.references.push({
+                        id: `ref-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+                        role,
+                        name: imported.name,
+                        relativePath: imported.relativePath,
+                        createdAt: new Date().toISOString()
+                      })
+                    })
+                    toast(`${role} reference added.`, 'success')
+                  })
+              }}
+            >
+              <b>{role.toUpperCase()}</b>
+              <span>{count}</span>
+            </button>
+          )
+        })}
+      </div>
+      {(doc?.references?.length ?? 0) > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          {doc!.references!.map((ref) => (
+            <div className="visual-memory-row" key={ref.id}>
+              <span className="visual-memory-kind">{ref.role.toUpperCase().slice(0, 5)}</span>
+              <span className="visual-memory-name">{ref.name}</span>
+              <button
+                className="rail-btn"
+                title="Remove reference card (copied file remains in refs/)"
+                onClick={() =>
+                  mutate('remove reference card', (project) => {
+                    project.references = (project.references ?? []).filter((item) => item.id !== ref.id)
+                  })
+                }
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="panel-title">{uiText(language, 'visualMemory')}</div>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+        <button
+          className="btn primary"
+          style={{ flex: 1 }}
+          onClick={() =>
+            void executeControlAction('ui_save_visual_checkpoint', { kind: 'daily', maxFrames: 8 })
+              .then(() => {
+                toast('Daily phase board saved.', 'success')
+                const folder = useStore.getState().projectFolder
+                if (folder) void window.blockout.listReviewArtifacts(folder).then(setReviews)
+              })
+              .catch((e) => toast(`Daily failed: ${(e as Error).message}`, 'error'))
+          }
+        >
+          Save Daily
+        </button>
+        <button
+          className="btn"
+          style={{ flex: 1 }}
+          disabled={!shot.director?.heroFrameApproved}
+          title={shot.director?.heroFrameApproved ? 'Save the approved Hero phase board' : 'Approve a Hero Frame first'}
+          onClick={() =>
+            void executeControlAction('ui_save_visual_checkpoint', { kind: 'hero', maxFrames: 8 })
+              .then(() => {
+                toast('Hero phase board saved.', 'success')
+                const folder = useStore.getState().projectFolder
+                if (folder) void window.blockout.listReviewArtifacts(folder).then(setReviews)
+              })
+              .catch((e) => toast(`Hero board failed: ${(e as Error).message}`, 'error'))
+          }
+        >
+          Save Hero Board
+        </button>
+      </div>
+      <p style={{ color: 'var(--text-faint)', fontSize: 11, lineHeight: 1.45, marginBottom: 8 }}>
+        Phase boards pack the important animation phases into one compact WebP for ChatGPT/agent review.
+      </p>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+        <button
+          className="btn"
+          style={{ flex: 1 }}
+          onClick={() =>
+            void window.blockout.listReviewArtifacts(useStore.getState().projectFolder ?? '').then(setReviews)
+          }
+        >
+          Refresh Dailies
+        </button>
+        <button
+          className="btn"
+          style={{ flex: 1 }}
+          onClick={() => {
+            const folder = useStore.getState().projectFolder
+            if (folder) void window.blockout.showFolder(`${folder}/reviews`)
+          }}
+        >
+          Open Reviews
+        </button>
+      </div>
+      {reviews.slice(0, 6).map((item) => (
+        <div className="visual-memory-row" key={item.path}>
+          <span className={`visual-memory-kind ${item.kind}`}>{item.kind === 'hero' ? 'HERO' : 'DAILY'}</span>
+          <span className="visual-memory-name">{item.name}</span>
+          <span className="visual-memory-size">{Math.max(1, Math.round(item.bytes / 1024))} KB</span>
+        </div>
+      ))}
 
       <div className="panel-title">Scene tools</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

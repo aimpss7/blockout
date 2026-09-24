@@ -585,7 +585,7 @@ export class SceneManager {
     visual.root.position.set(t.position.x, t.position.y, t.position.z)
     visual.root.rotation.y = t.rotationY
     visual.root.scale.setScalar(t.scale)
-    visual.built.setTint(visual.entity.label?.color ?? null)
+    visual.built.setTint(visual.entity.color ?? visual.entity.label?.color ?? null)
   }
 
   private syncLabel(visual: EntityVisual): void {
@@ -1193,6 +1193,7 @@ export class SceneManager {
             m.pan = e.y
             m.tilt = e.x
             m.roll = e.z
+            if (shot) shot.director = { ...shot.director, heroFrameApproved: false }
           }
         }
       })
@@ -1214,6 +1215,7 @@ export class SceneManager {
     this.dragStart = null
     this.dragAnchorId = null
 
+    const editedShotId = this.shot?.id
     s.mutate(ids.length > 1 ? 'move group' : 'move entity', (doc) => {
       for (const scene of doc.scenes) {
         for (const id of ids) {
@@ -1271,6 +1273,12 @@ export class SceneManager {
               }
             }
           }
+        }
+        const editedShot =
+          scene.shots.find((shot) => shot.id === editedShotId) ??
+          scene.drafts?.find((shot) => shot.id === editedShotId)
+        if (editedShot) {
+          editedShot.director = { ...editedShot.director, heroFrameApproved: false }
         }
       }
     })
@@ -1394,7 +1402,10 @@ export class SceneManager {
       for (const scene of doc.scenes) {
         for (const shot of scene.shots) {
           const m = shot.camera.marks.find((x) => x.id === mark.id)
-          if (m) m.focalLength = focalLength
+          if (m) {
+            m.focalLength = focalLength
+            shot.director = { ...shot.director, heroFrameApproved: false }
+          }
         }
       }
     })
@@ -1462,6 +1473,7 @@ export class SceneManager {
               m.position = { x: px, y: py, z: pz }
               m.pan = pan
               m.tilt = tilt
+              shot.director = { ...shot.director, heroFrameApproved: false }
             }
           }
         }
@@ -1520,7 +1532,10 @@ export class SceneManager {
             for (const scene of doc.scenes)
               for (const shot of scene.shots) {
                 const m = shot.camera.marks.find((x) => x.id === fresh.id)
-                if (m) m.roll = roll
+                if (m) {
+                  m.roll = roll
+                  shot.director = { ...shot.director, heroFrameApproved: false }
+                }
               }
           })
         }
@@ -1535,6 +1550,7 @@ export class SceneManager {
               m.pan = pan
               m.tilt = tilt
               if (roll !== undefined) m.roll = roll
+              shot.director = { ...shot.director, heroFrameApproved: false }
             }
           }
       })
@@ -1701,7 +1717,7 @@ export class SceneManager {
    * flying plane or a walking actor. Enables aim-lock tracking when the move
    * calls for it. One undo step; adjust any mark afterwards.
    */
-  applyCameraMove(presetId: string): void {
+  applyCameraMove(presetId: string, directorRecipeId?: string): void {
     const s = this.currentState()
     const preset = CAMERA_MOVE_PRESETS.find((p) => p.id === presetId)
     if (!preset || !this.shot || !this.evaluator || !this.docScene) return
@@ -1753,6 +1769,12 @@ export class SceneManager {
           scene.shots.find((x) => x.id === shotId) ?? scene.drafts?.find((x) => x.id === shotId)
         if (!shot) continue
         shot.camera.marks = marks
+        shot.director = {
+          ...shot.director,
+          cameraRecipeId: directorRecipeId,
+          cameraSubjectEntityId: directorRecipeId ? subject.id : undefined,
+          heroFrameApproved: false
+        }
         // Aim-lock moves stay glued to the subject even if marks are re-timed
         // or dragged; framed moves (whip pan, static pan) aim by their marks.
         if (preset.track) shot.camera.trackEntityId = subject.id
@@ -1908,6 +1930,7 @@ export class SceneManager {
           scene.shots.find((x) => x.id === shotId) ?? scene.drafts?.find((x) => x.id === shotId)
         if (shot) {
           shot.camera.marks = marks
+          shot.director = { ...shot.director, cameraRecipeId: undefined, heroFrameApproved: false }
           if (!this.recPlaybackSynced) shot.duration = Math.round(length * 10) / 10
         }
       }

@@ -23,6 +23,7 @@ import { newId } from '@engine/ids'
 import { generateSequence, choreographMotion } from '@engine/sequences'
 import { buildRoutine } from '@engine/choreography'
 import { ACTION_PRESETS } from '@engine/action-presets'
+import { heroApprovalFingerprint } from '@engine/director'
 
 export type Mode = 'stage' | 'shoot' | 'deliver'
 
@@ -339,7 +340,32 @@ export const useStore = create<BlockoutState>((set, get) => ({
     if (get().exportProgress.running) return
     set({ shotId, time: 0, playing: false })
   },
-  setSelection: (selection) => set({ selection, droppingMarks: false }),
+  setSelection(selection) {
+    // Selecting a timeline mark should put the playhead ON that decision.
+    // This makes camera-keyframe editing deterministic and avoids the common
+    // "I edited the previous mark by accident" workflow.
+    if (selection?.kind === 'mark') {
+      const scene = get().scene()
+      const shot = get().shot()
+      const take = scene?.blocking.find((b) => b.id === shot?.blockingTakeId)
+      const mark =
+        selection.entityId === 'camera'
+          ? shot?.camera.marks.find((m) => m.id === selection.markId)
+          : take?.tracks
+              .find((track) => track.entityId === selection.entityId)
+              ?.marks.find((m) => m.id === selection.markId)
+      if (mark) {
+        set({
+          selection,
+          droppingMarks: false,
+          time: mark.time,
+          playing: false
+        })
+        return
+      }
+    }
+    set({ selection, droppingMarks: false })
+  },
   setPlacingAsset: (placingAssetId) => set({ placingAssetId, placingSequence: null, placingChoreography: null }),
   setPlacingSequence: (placingSequence) => set({ placingSequence, placingAssetId: null, placingChoreography: null }),
   setPlacingChoreography: (placingChoreography) =>
@@ -387,7 +413,11 @@ export const useStore = create<BlockoutState>((set, get) => ({
     get().mutate(n > 1 ? `delete ${n} marks` : 'delete mark', (doc) => {
       for (const scene of doc.scenes) {
         for (const shot of [...scene.shots, ...(scene.drafts ?? [])]) {
+          const before = shot.camera.marks.length
           shot.camera.marks = shot.camera.marks.filter((m) => !ids.has(m.id))
+          if (shot.camera.marks.length !== before) {
+            shot.director = { ...shot.director, heroFrameApproved: false }
+          }
         }
         for (const take of scene.blocking) {
           for (const track of take.tracks) {
@@ -423,8 +453,32 @@ export const useStore = create<BlockoutState>((set, get) => ({
       get().toast('Editing is locked while an export is running.', 'info')
       return
     }
+    const beforeHero = new Map<string, string>()
+    for (const scene of doc.scenes) {
+      for (const shot of [...scene.shots, ...(scene.drafts ?? [])]) {
+        if (shot.director?.heroFrameApproved) {
+          beforeHero.set(shot.id, heroApprovalFingerprint(scene, shot))
+        }
+      }
+    }
+
     const next = structuredClone(doc)
     fn(next)
+
+    // One central invalidation rule is safer than every UI/MCP path remembering
+    // to clear Hero approval. Any visual/timing change to an approved shot
+    // invalidates it automatically; pure metadata/lock edits do not.
+    if (label !== 'approve hero frame' && label !== 'agent: approve hero frame') {
+      for (const scene of next.scenes) {
+        for (const shot of [...scene.shots, ...(scene.drafts ?? [])]) {
+          const before = beforeHero.get(shot.id)
+          if (before && before !== heroApprovalFingerprint(scene, shot)) {
+            shot.director = { ...shot.director, heroFrameApproved: false }
+          }
+        }
+      }
+    }
+
     const now = Date.now()
     const coalesce = label === lastMutateLabel && now - lastMutateAt < COALESCE_MS
     lastMutateLabel = label
@@ -433,6 +487,19 @@ export const useStore = create<BlockoutState>((set, get) => ({
       // Keep the snapshot taken at the start of the swipe; just move the doc.
       set({ doc: next, dirty: true })
     } else {
+      const folder = get().projectFolder
+      if (folder) {
+        // Fire-and-forget append-only provenance. The project JSON remains the
+        // source of truth; this small log lets agents ask "what changed?"
+        // without re-reading the entire document.
+        void window.blockout.appendHistoryEvent(folder, {
+          type: 'mutation',
+          source: label.startsWith('agent:') ? 'agent' : label.startsWith('ui:') ? 'human' : 'human',
+          label,
+          sceneId: get().sceneId,
+          shotId: get().shotId
+        })
+      }
       const snapshot = serializeProject(doc)
       set({
         doc: next,
@@ -450,6 +517,14 @@ export const useStore = create<BlockoutState>((set, get) => ({
     const prev = undoStack[undoStack.length - 1]!
     const { doc: restored } = parseProject(prev)
     if (!restored) return
+    const folder = get().projectFolder
+    if (folder) void window.blockout.appendHistoryEvent(folder, {
+      type: 'undo',
+      source: 'human',
+      label: 'undo',
+      sceneId,
+      shotId
+    })
     set({
       doc: restored,
       undoStack: undoStack.slice(0, -1),
@@ -469,6 +544,14 @@ export const useStore = create<BlockoutState>((set, get) => ({
     const next = redoStack[redoStack.length - 1]!
     const { doc: restored } = parseProject(next)
     if (!restored) return
+    const folder = get().projectFolder
+    if (folder) void window.blockout.appendHistoryEvent(folder, {
+      type: 'redo',
+      source: 'human',
+      label: 'redo',
+      sceneId,
+      shotId
+    })
     set({
       doc: restored,
       redoStack: redoStack.slice(0, -1),
@@ -497,7 +580,7 @@ export const useStore = create<BlockoutState>((set, get) => ({
 
   addEntity(assetId, position) {
     const spec = assetSpec(assetId)
-    const sceneId = get().sceneId
+    const { sceneId, shotId } = get()
     const entity = createEntity(assetId, spec.name, position)
     get().mutate('add entity', (doc) => {
       const scene = doc.scenes.find((s) => s.id === sceneId)
@@ -506,6 +589,9 @@ export const useStore = create<BlockoutState>((set, get) => ({
       const count = scene.entities.filter((e) => e.assetId === assetId).length
       if (count > 0) entity.name = `${spec.name} ${count + 1}`
       scene.entities.push(entity)
+      const shot =
+        scene.shots.find((s) => s.id === shotId) ?? scene.drafts?.find((s) => s.id === shotId)
+      if (shot) shot.director = { ...shot.director, heroFrameApproved: false }
     })
     set({ selection: { kind: 'entity', entityId: entity.id } })
     return entity.id
@@ -553,6 +639,7 @@ export const useStore = create<BlockoutState>((set, get) => ({
       const lastTime = track.marks.reduce((m, k) => Math.max(m, k.time + k.hold), -1)
       const t = track.marks.length === 0 ? 0 : Math.max(time, lastTime + 2)
       track.marks.push(createActorMark(position, Math.min(t, shot.duration), gait))
+      shot.director = { ...shot.director, heroFrameApproved: false }
     })
   },
 
@@ -566,6 +653,7 @@ export const useStore = create<BlockoutState>((set, get) => ({
       const lastTime = marks.reduce((m, k) => Math.max(m, k.time + k.hold), -1)
       const t = marks.length === 0 ? 0 : Math.max(time, lastTime + 2)
       marks.push(createCameraMark(position, Math.min(t, shot.duration), pan, tilt, focalLength))
+      shot.director = { ...shot.director, heroFrameApproved: false }
     })
   },
 
@@ -710,6 +798,7 @@ export const useStore = create<BlockoutState>((set, get) => ({
       shot.cameraBank[idx] = { name: shot.cameraName ?? 'A', camera: shot.camera }
       shot.camera = incoming.camera
       shot.cameraName = incoming.name
+      shot.director = { ...shot.director, heroFrameApproved: false }
     })
     set({ selection: { kind: 'camera' } })
   },
@@ -741,6 +830,7 @@ export const useStore = create<BlockoutState>((set, get) => ({
         marks: []
       }
       shot.cameraName = letter
+      shot.director = { ...shot.director, heroFrameApproved: false }
       added = letter
     })
     if (added) {
@@ -755,7 +845,10 @@ export const useStore = create<BlockoutState>((set, get) => ({
       const scene = doc.scenes.find((s) => s.id === sceneId)
       const shot =
         scene?.shots.find((s) => s.id === shotId) ?? scene?.drafts?.find((s) => s.id === shotId)
-      if (shot) shot.camera.marks = []
+      if (shot) {
+        shot.camera.marks = []
+        shot.director = { ...shot.director, heroFrameApproved: false }
+      }
     })
     get().toast('Camera move cleared — record or drop new marks.', 'info')
   },
@@ -779,6 +872,15 @@ export const useStore = create<BlockoutState>((set, get) => ({
         ...b,
         camera: { ...b.camera, marks: b.camera.marks.map((m) => ({ ...m, id: newId('cmark') })) }
       }))
+      // Drafts are explicitly for experimentation: preserve directing intent
+      // and provenance, but require fresh visual approval and remove AI locks.
+      if (clone.director) {
+        clone.director = {
+          ...clone.director,
+          heroFrameApproved: false,
+          locks: undefined
+        }
+      }
       scene.drafts = scene.drafts ?? []
       const version = scene.drafts.filter((d) => d.draftOf === mainId).length + 1
       clone.name = `${main.name} v${version}`
@@ -806,6 +908,7 @@ export const useStore = create<BlockoutState>((set, get) => ({
       main.cameraBank = draft.cameraBank ? structuredClone(draft.cameraBank) : undefined
       main.notes = draft.notes
       main.referenceVideo = draft.referenceVideo ? { ...draft.referenceVideo } : undefined
+      main.director = draft.director ? structuredClone(draft.director) : undefined
       promotedInto = main.id
     })
     if (promotedInto) {

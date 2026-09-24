@@ -2,7 +2,11 @@
 
 A profile tells Blockout how a target AI generator consumes references and constrains the export (duration cap, resolution, fps), plus how to phrase the adherence instruction in the generated prompt. Profiles are **data, not code** — updating for a new model version is an edit, not a release.
 
-Built-ins live in `src/engine/profiles.ts` (`BUILTIN_PROFILES`). Video: Seedance 2.0, Veo 3.1, Kling 2.x, LTX 2.3, Wan 2.2. Image: GPT Image 2, Nano Banana, Ideogram, Krea 2.
+> **Seedance 2.5:** this fork includes a separate `seedance-2.5` profile and makes it the default for new projects. The official ByteDance release (2026-07-31) supports up to 30-second generation and multimodal reference workflows, including white-model / motion references. Blockout therefore treats its MP4 as motion/camera/blocking authority and expects identity/location/style to come from separate references.
+>
+> Official reference: https://seed.bytedance.com/en/blog/one-take-creation-flexible-referencing-introducing-seedance-2-5
+
+Built-ins live in `src/engine/profiles.ts` (`BUILTIN_PROFILES`). Video: Seedance 2.5, Seedance 2.0, Veo 3.1, Kling 2.x, LTX 2.3, Wan 2.2. Image: GPT Image 2, Nano Banana, Ideogram, Krea 2.
 
 ## Fields
 
@@ -29,4 +33,4 @@ Profiles with `depthVideo` in `refModes` also get a pre-wired `comfyui-workflow.
 
 ## Prompting notes
 
-The generated prompt is assembled from actual scene data: lens/sensor/aspect/lighting line, camera choreography per leg (push/track/boom/pan/tilt/zoom with timings), each labeled subject's marks and gaits with arrival times, the setting, then the profile's adherence clause and a standing instruction that grey placeholder figures should be replaced with the described subjects while keeping positions/timing identical.
+The generated prompt stays intentionally compact: it summarizes lens/sensor/aspect/lighting and labeled subjects, then tells the target model how to treat Blockout's motion/reference media. Detailed per-frame choreography lives in the exported reference video and metadata rather than being duplicated into a long prompt.

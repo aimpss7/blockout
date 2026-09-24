@@ -14,7 +14,7 @@ import { ReferenceUnderlay, ReferenceControls } from './ReferenceUnderlay'
 import { LENS_SET, SHOT_SIZES } from '@engine/camera'
 import type { AspectId, ShotSizeId } from '@engine/types'
 
-const ASPECT_ORDER: AspectId[] = ['16:9', '9:16', '2.39:1', '4:3', '1:1']
+const ASPECT_ORDER: AspectId[] = ['9:16', '3:4', '4:5', '1:1', '16:9', '4:3', '2.39:1']
 
 function Hud(): JSX.Element | null {
   const doc = useStore((s) => s.doc)
@@ -64,6 +64,12 @@ function Hud(): JSX.Element | null {
         <span className="hud-label">AR</span>
         {shot.aspect}
       </button>
+      {(shot.aspect === '9:16' || shot.aspect === '4:5' || shot.aspect === '3:4') && (
+        <button title="Social framing preset — safe guides are shown in look-through">
+          <span className="hud-label">SOCIAL</span>
+          {shot.aspect === '9:16' ? 'Reels / TikTok' : shot.aspect === '4:5' ? 'Feed' : 'Portrait'}
+        </button>
+      )}
       <button title="Shot duration — edit in the timeline">
         <span className="hud-label">DUR</span>
         {shot.duration.toFixed(1)}s
@@ -345,6 +351,7 @@ export function Viewport(): JSX.Element {
   const selection = useStore((s) => s.selection)
   const doc = useStore((s) => s.doc)
   const sceneId = useStore((s) => s.sceneId)
+  const shotId = useStore((s) => s.shotId)
   const setSelection = useStore((s) => s.setSelection)
   const setDroppingMarks = useStore((s) => s.setDroppingMarks)
 
@@ -466,6 +473,27 @@ export function Viewport(): JSX.Element {
         </div>
       )}
       {mode === 'shoot' && <ReferenceUnderlay />}
+      {showLetterbox && shotId && (() => {
+        const activeShot = scene?.shots.find((sh) => sh.id === shotId)
+        if (!activeShot || !['9:16', '4:5', '3:4'].includes(activeShot.aspect)) return null
+        return (
+          <div
+            className={`social-safe social-safe-${activeShot.aspect.replace(':', '-')}`}
+            style={{
+              left: viewRect!.x,
+              top: viewRect!.y,
+              width: viewRect!.w,
+              height: viewRect!.h
+            }}
+            title="Editor-only social safe area; never exported"
+          >
+            <div className="social-safe-inner" />
+            {activeShot.aspect === '9:16' && <div className="social-safe-right-ui" />}
+            {activeShot.aspect === '9:16' && <div className="social-safe-bottom-ui" />}
+            <span>SAFE AREA</span>
+          </div>
+        )
+      })()}
 
       {/* PiP live shot preview chrome */}
       {pipRect && !lookThrough && mode !== 'deliver' && (

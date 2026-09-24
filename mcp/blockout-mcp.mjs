@@ -43,10 +43,41 @@ const PROTOCOL_VERSION = '2024-11-05'
 // object is passed through verbatim as that action's params.
 const TOOLS = [
   {
+    name: 'get_visual_context',
+    description:
+      'Return one compact WebP phase board plus recent project changes and the current state token. Preferred orientation call before reviewing or revising a shot.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        maxFrames: { type: 'number', description: '2–9 representative phases; default 6.' },
+        historyLimit: { type: 'number', description: '1–30 recent change events; default 12.' }
+      },
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'get_recent_changes',
+    description:
+      'Return the latest compact project history events so an agent can understand what changed without re-reading the whole project.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        limit: { type: 'number', description: '1–100 events; default 30.' }
+      },
+      additionalProperties: false
+    }
+  },
+  {
     name: 'get_state',
     description:
-      'Call FIRST. Returns a summary of the current project, scene, and active shot: the placed entities (id, asset, label, position) and the choreography marks on the timeline (actor + camera). Coordinates are in meters, +X is right, -Z is forward/away from the default camera; heading 0 faces -Z; rotationDeg is clockwise seen from above.',
-    inputSchema: { type: 'object', properties: {}, additionalProperties: false }
+      'Call FIRST. Returns compact project/scene/shot state plus stateToken. Use detail="full" only when exact actor/camera marks are required. Coordinates: meters, +X right, -Z forward; heading 0 faces -Z.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        detail: { type: 'string', enum: ['compact', 'full'], description: 'Default compact to save context.' }
+      },
+      additionalProperties: false
+    }
   },
   {
     name: 'list_assets',
@@ -60,6 +91,225 @@ const TOOLS = [
           description: 'Optional category filter, e.g. "people", "vehicles", "environment".'
         }
       },
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'replace_scene',
+    description:
+      'Agent-first atomic shot blueprint. Replaces current staging + actor marks and updates the active shot in ONE undoable mutation. Requires the stateToken from get_state so human edits cannot be overwritten silently.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        _expectedStateToken: { type: 'string', description: 'Exact stateToken from the reviewed get_state result.' },
+        lighting: { type: 'string', description: 'Optional Blockout lighting preset id.' },
+        entities: {
+          type: 'array',
+          minItems: 1,
+          maxItems: 32,
+          items: {
+            type: 'object',
+            properties: {
+              key: { type: 'string', description: 'Stable blueprint key used by trackEntityKey.' },
+              assetId: { type: 'string' },
+              name: { type: 'string' },
+              label: { type: 'string' },
+              x: { type: 'number' },
+              y: { type: 'number' },
+              z: { type: 'number' },
+              rotationDeg: { type: 'number' },
+              scale: { type: 'number', description: 'Uniform entity scale.' },
+              color: { type: 'string', description: 'Optional simple matte object color as #RRGGBB.' },
+              params: {
+                type: 'object',
+                description: 'Asset parameters. Primitives: cube/ramp/wall width,height,depth; cylinder radius,height; stairs width,height,depth,steps.',
+                additionalProperties: true
+              },
+              marks: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    time: { type: 'number' },
+                    x: { type: 'number' },
+                    y: { type: 'number' },
+                    z: { type: 'number' },
+                    gait: { type: 'string' },
+                    hold: { type: 'number' },
+                    easeIn: { type: 'number' },
+                    easeOut: { type: 'number' },
+                    headingDeg: { type: 'number' },
+                    joints: { type: 'object', additionalProperties: { type: 'number' } }
+                  },
+                  additionalProperties: false
+                }
+              }
+            },
+            required: ['assetId'],
+            additionalProperties: false
+          }
+        },
+        shot: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            duration: { type: 'number' },
+            fps: { type: 'number' },
+            aspect: { type: 'string' },
+            rig: { type: 'string' },
+            notes: { type: 'string' },
+            trackEntityKey: { type: 'string' },
+            cameraMarks: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  time: { type: 'number' },
+                  x: { type: 'number' },
+                  y: { type: 'number' },
+                  z: { type: 'number' },
+                  panDeg: { type: 'number' },
+                  tiltDeg: { type: 'number' },
+                  rollDeg: { type: 'number' },
+                  focalLength: { type: 'number' },
+                  focusDistance: { type: 'number' },
+                  hold: { type: 'number' },
+                  easeIn: { type: 'number' },
+                  easeOut: { type: 'number' }
+                },
+                additionalProperties: false
+              }
+            }
+          },
+          additionalProperties: false
+        }
+      },
+      required: ['_expectedStateToken', 'entities', 'shot'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'export_shot_plan',
+    description:
+      'Export the active Blockout scene/shot as a portable .shot.json Director Shot Plan for ChatGPT, Codex, Claude or file handoff.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        source: { type: 'string' },
+        note: { type: 'string' }
+      },
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'import_shot_plan',
+    description:
+      'Import a portable Blockout .shot.json Director Shot Plan and compile it through the exact same path used by ChatGPT/Codex.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        _expectedStateToken: { type: 'string' },
+        filePath: { type: 'string', description: 'Absolute path to a .shot.json file.' }
+      },
+      required: ['_expectedStateToken', 'filePath'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'compile_shot',
+    description:
+      'Preferred director tool. In one request: atomically replace staging/blocking/shot, optionally apply a high-level camera recipe, and set directing intent + hero-frame candidate. Requires the reviewed stateToken.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        _expectedStateToken: { type: 'string' },
+        intent: { type: 'string', description: 'Short directing intent, e.g. "quiet product reveal".' },
+        cameraRecipeId: { type: 'string', description: 'Optional recipe from list_camera_recipes.' },
+        cameraSubjectKey: { type: 'string', description: 'Entity key from entities[] used as the camera-recipe subject.' },
+        heroFrameTime: { type: 'number', description: 'Candidate representative frame time in seconds; approval happens separately.' },
+        lighting: { type: 'string' },
+        entities: {
+          type: 'array',
+          minItems: 1,
+          maxItems: 32,
+          items: {
+            type: 'object',
+            properties: {
+              key: { type: 'string' },
+              assetId: { type: 'string' },
+              name: { type: 'string' },
+              label: { type: 'string' },
+              x: { type: 'number' },
+              y: { type: 'number' },
+              z: { type: 'number' },
+              rotationDeg: { type: 'number' },
+              scale: { type: 'number', description: 'Uniform entity scale.' },
+              color: { type: 'string', description: 'Optional simple matte object color as #RRGGBB.' },
+              params: {
+                type: 'object',
+                description: 'Asset parameters. Primitives: cube/ramp/wall width,height,depth; cylinder radius,height; stairs width,height,depth,steps.',
+                additionalProperties: true
+              },
+              marks: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    time: { type: 'number' },
+                    x: { type: 'number' },
+                    y: { type: 'number' },
+                    z: { type: 'number' },
+                    gait: { type: 'string' },
+                    hold: { type: 'number' },
+                    easeIn: { type: 'number' },
+                    easeOut: { type: 'number' },
+                    headingDeg: { type: 'number' },
+                    joints: { type: 'object', additionalProperties: { type: 'number' } }
+                  },
+                  additionalProperties: false
+                }
+              }
+            },
+            required: ['key', 'assetId'],
+            additionalProperties: false
+          }
+        },
+        shot: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            duration: { type: 'number' },
+            fps: { type: 'number' },
+            aspect: { type: 'string' },
+            rig: { type: 'string' },
+            notes: { type: 'string' },
+            trackEntityKey: { type: 'string' },
+            cameraMarks: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  time: { type: 'number' },
+                  x: { type: 'number' },
+                  y: { type: 'number' },
+                  z: { type: 'number' },
+                  panDeg: { type: 'number' },
+                  tiltDeg: { type: 'number' },
+                  rollDeg: { type: 'number' },
+                  focalLength: { type: 'number' },
+                  focusDistance: { type: 'number' },
+                  hold: { type: 'number' },
+                  easeIn: { type: 'number' },
+                  easeOut: { type: 'number' }
+                },
+                additionalProperties: false
+              }
+            }
+          },
+          additionalProperties: false
+        }
+      },
+      required: ['_expectedStateToken', 'entities', 'shot'],
       additionalProperties: false
     }
   },
@@ -341,6 +591,62 @@ const TOOLS = [
     }
   },
   {
+    name: 'list_camera_recipes',
+    description:
+      'Small directing vocabulary over the raw camera catalog. Recipes describe intent, shot function, suggested lens and pacing, then execute through deterministic Blockout camera moves.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false }
+  },
+  {
+    name: 'apply_camera_recipe',
+    description:
+      'Apply one director-level camera recipe around a subject. Requires stateToken so a reviewed human edit is not silently overwritten.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        _expectedStateToken: { type: 'string', description: 'Exact stateToken from get_state or review_shot.' },
+        recipeId: { type: 'string', description: 'Recipe id from list_camera_recipes.' },
+        entityId: { type: 'string', description: 'Optional subject entity id.' }
+      },
+      required: ['_expectedStateToken', 'recipeId'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'set_human_locks',
+    description:
+      'Protect human-approved decisions from agent mutations. Camera/framing locks block camera recipes; lens preserves focal lengths; staging/blocking locks block atomic shot-plan replacement.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        _expectedStateToken: { type: 'string' },
+        camera: { type: 'boolean' },
+        lens: { type: 'boolean' },
+        framing: { type: 'boolean' },
+        staging: { type: 'boolean' },
+        blockingEntityIds: { type: 'array', items: { type: 'string' } }
+      },
+      required: ['_expectedStateToken'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'approve_hero_frame',
+    description:
+      'Approve the representative frame after review. By default locks camera, lens, and framing so the approved composition cannot be silently changed by later agent work.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        _expectedStateToken: { type: 'string' },
+        time: { type: 'number', description: 'Hero-frame time; defaults to current playhead.' },
+        lockCamera: { type: 'boolean', description: 'Default true.' },
+        lockLens: { type: 'boolean', description: 'Default true.' },
+        lockFraming: { type: 'boolean', description: 'Default true.' }
+      },
+      required: ['_expectedStateToken'],
+      additionalProperties: false
+    }
+  },
+  {
     name: 'set_track_subject',
     description:
       'Aim-lock the shot camera onto an entity: the camera stays pointed at it no matter how its position moves (marks, recordings, presets). Pass no entityId to turn tracking off.',
@@ -381,6 +687,62 @@ const TOOLS = [
     name: 'stop',
     description: 'Stop timeline playback.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false }
+  },
+  {
+    name: 'review_shot',
+    description:
+      'Render 2–9 representative moments of the ACTIVE shot into ONE contact sheet. Prefer this over repeated screenshots. Returns the sheet plus the current stateToken.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        _expectedStateToken: { type: 'string', description: 'Optional token to ensure you are reviewing the state you expect.' },
+        maxFrames: { type: 'number', description: '2–9 frames, default 6.' }
+      },
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'save_visual_checkpoint',
+    description:
+      'Save one compact WebP phase board showing sequential animation/camera phases plus JSON metadata. Use this for durable dailies/hero visual memory; use review_shot for temporary inspection.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        _expectedStateToken: { type: 'string' },
+        kind: { type: 'string', enum: ['daily', 'hero'] },
+        maxFrames: { type: 'number', description: '2–12 sequential phases; default 8.' },
+        source: { type: 'string', description: 'human, chatgpt, codex, import, etc.' },
+        note: { type: 'string' }
+      },
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'export_shot',
+    description:
+      'Export the active shot as a deterministic generator-reference package. Default is a lean motion-reference MP4 + stills + prompt + metadata/reference roles; depth/normal are opt-in.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        _expectedStateToken: { type: 'string', description: 'Optional reviewed state token.' },
+        profileId: { type: 'string', description: 'Generator profile, e.g. seedance-2.5.' },
+        clean: { type: 'boolean' },
+        depth: { type: 'boolean' },
+        normal: { type: 'boolean' },
+        labels: { type: 'string', enum: ['on', 'stillsOnly', 'off'] },
+        resolution: { type: 'string', enum: ['auto', '720p', '1080p'] },
+        requireApprovedHeroFrame: {
+          type: 'boolean',
+          description: 'Defaults true for seedance-2.5; set false only for exploratory exports.'
+        },
+
+        allowUnsupportedAspect: {
+          type: 'boolean',
+          description: 'Default false. Explicit escape hatch when the selected generator profile does not declare the shot aspect.'
+        }
+      },
+      additionalProperties: false
+    }
   },
   {
     name: 'screenshot',
@@ -464,6 +826,26 @@ const TOOLS = [
     }
   },
   {
+    name: 'import_motion_previs_camera',
+    description:
+      'Import a Motion Previs Studio v4 camera_motion.json as editable Blockout camera marks, anchored to the current shot camera. This is for measured camera language from a film/ad/reference, not for look/identity.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        _expectedStateToken: { type: 'string' },
+        cameraMotionPath: { type: 'string', description: 'Absolute path to camera_motion.json from a Motion Previs bundle.' },
+        targetFps: { type: 'number', description: 'Imported camera-mark density, 1–24fps; default 6.' },
+        durationMode: {
+          type: 'string',
+          enum: ['fit-shot', 'source'],
+          description: 'fit-shot retimes measured motion to current shot duration; source adopts Motion Previs duration.'
+        }
+      },
+      required: ['_expectedStateToken', 'cameraMotionPath'],
+      additionalProperties: false
+    }
+  },
+  {
     name: 'set_reference',
     description:
       'Attach a reference video to the active shot (the Motion Previs Studio handoff v1). The clip is copied into the project’s refs/ folder and shown as a ghost underlay (or picture-in-picture) so you can match blocking against it by eye. videoPath is an absolute path to the source clip.',
@@ -485,7 +867,31 @@ const TOOLS = [
   }
 ]
 
-const TOOL_NAMES = new Set(TOOLS.map((t) => t.name))
+const DIRECTOR_TOOL_NAMES = new Set([
+  'get_state',
+  'get_visual_context',
+  'get_recent_changes',
+  'list_assets',
+  'compile_shot',
+  'import_shot_plan',
+  'export_shot_plan',
+  'list_camera_recipes',
+  'apply_camera_recipe',
+  'review_shot',
+  'approve_hero_frame',
+  'set_human_locks',
+  'save_visual_checkpoint',
+  'export_shot',
+  'import_motion_previs_camera',
+  'set_reference'
+])
+
+const EXPOSED_TOOLS =
+  process.env.BLOCKOUT_MCP_FULL_TOOLS === '1'
+    ? TOOLS
+    : TOOLS.filter((tool) => DIRECTOR_TOOL_NAMES.has(tool.name))
+
+const TOOL_NAMES = new Set(EXPOSED_TOOLS.map((t) => t.name))
 
 /* ------------------------------ control call ---------------------------- */
 
@@ -549,9 +955,13 @@ async function handleToolCall(id, params) {
     reply(id, { content: [{ type: 'text', text: error }], isError: true })
     return
   }
-  // Image special-case: an ok screenshot returns base64 PNG data.
+  // Image result can also carry tiny structured metadata (review times/state token)
+  // so the agent does not need a second state call after visual review.
   if (response && response.ok && response.data && typeof response.data.imageBase64 === 'string') {
-    reply(id, { content: [{ type: 'image', data: response.data.imageBase64, mimeType: 'image/png' }] })
+    const { imageBase64, ...meta } = response.data
+    const content = [{ type: 'image', data: imageBase64, mimeType: 'image/png' }]
+    if (Object.keys(meta).length > 0) content.push({ type: 'text', text: JSON.stringify(meta) })
+    reply(id, { content })
     return
   }
   reply(id, {
@@ -567,13 +977,13 @@ async function handle(msg) {
       reply(id, {
         protocolVersion: PROTOCOL_VERSION,
         capabilities: { tools: {} },
-        serverInfo: { name: 'blockout', version: '1.0.0' }
+        serverInfo: { name: 'blockout', version: '1.1.0-director' }
       })
       return
     case 'notifications/initialized':
       return // notification, no reply
     case 'tools/list':
-      reply(id, { tools: TOOLS })
+      reply(id, { tools: EXPOSED_TOOLS })
       return
     case 'tools/call':
       await handleToolCall(id, params)

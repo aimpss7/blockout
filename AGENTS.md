@@ -2,6 +2,8 @@
 
 # AGENTS.md — running & modifying Blockout with an AI agent
 
+> **Current fork handoff:** read `docs/AGENT_HANDOFF.md` before continuing `feat/agent-director-v1`. It records implemented work, audit findings, unverified areas, and the required validation sequence.
+
 This file is the single source of truth for AI coding agents (Claude Code, Codex, Hermes, OpenClaw, …) working on this repo. `CLAUDE.md` points here.
 
 ## What this app is
@@ -76,6 +78,14 @@ Headless/dialog-free driving: launch with env `BLOCKOUT_SMOKE_DIR=/some/dir` —
 - **Change the document schema**: bump nothing lightly — update types in `engine/types.ts`, factories/validation in `engine/schema.ts`, and the round-trip test. Never break `parseProject` on existing files; migrate instead.
 
 ## Agent control (MCP)
+
+**Fork-specific director mode.** The MCP bridge now exposes a compact tool set by
+default: `get_state`, `get_visual_context`, `get_recent_changes`, `list_assets`, `compile_shot`, `list_camera_recipes`,
+`apply_camera_recipe`, `review_shot`, `approve_hero_frame`,
+`set_human_locks`, `save_visual_checkpoint`, `export_shot`, `import_shot_plan`, `export_shot_plan`, `import_motion_previs_camera`, and `set_reference`. This is intentional: keep the agent on a
+high-level directing surface and minimize tool-schema/context cost. Set
+`BLOCKOUT_MCP_FULL_TOOLS=1` only when low-level Blockout operations are
+actually needed. See `docs/AGENT_DIRECTOR_ROADMAP.md`.
 
 Blockout ships an MCP server so you can drive a **running** app from Claude Code, Codex, Hermes, or any MCP client — stage entities, drop marks, reframe, scrub, and grab a viewport screenshot without touching the UI.
 

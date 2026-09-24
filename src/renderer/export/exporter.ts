@@ -2,8 +2,8 @@
 /**
  * The Deliver pipeline. Exports are deterministic: the timeline is stepped
  * at exactly the shot's fps and every frame is rendered from the same
- * ShotEvaluator state used in playback, then piped as PNG to ffmpeg in the
- * main process. Output never depends on playback performance.
+ * ShotEvaluator state used in playback, then piped as raw RGBA frames to ffmpeg
+ * in the main process. Output never depends on playback performance.
  */
 
 import * as THREE from 'three'
@@ -50,7 +50,7 @@ export function exportDims(
   const ratio = ASPECT_RATIOS[aspect]
   if (resolution !== 'auto') {
     // Pin the short edge (720p → 1280×720 at 16:9, 720×1280 at 9:16) —
-    // Seedance only accepts 720p reference files.
+    // 720p is the compatibility / lightweight reference option.
     const short = resolution === '720p' ? 720 : 1080
     if (ratio >= 1) return { width: evenDim(short * ratio), height: short }
     return { width: short, height: evenDim(short / ratio) }
@@ -185,6 +185,7 @@ function buildMetadata(scene: Scene, shot: Shot, profile: GeneratorProfile): str
         name: entity?.label?.text || entity?.name || track.entityId,
         asset: entity?.assetId,
         labelColor: entity?.label?.color ?? null,
+        baseColor: entity?.color ?? null,
         marks: [...track.marks]
           .sort((a, b) => a.time - b.time)
           .map((m, i) => ({
@@ -219,6 +220,82 @@ export async function renderStillPngForTest(t: number, width = 320, height = 180
   canvas.height = height
   manager.renderFrameAt(renderer, t, width, height, 'clean', { showLabels: true })
   return canvasPng(canvas)
+}
+
+/**
+ * Agent review hook: render representative moments from ONE shot into a single
+ * contact sheet. This replaces repeated screenshot tool calls and therefore
+ * keeps both latency and LLM context use low.
+ */
+export async function renderReviewSheet(
+  times: number[],
+  cellWidth = 480,
+  cellHeight = 270,
+  columns = 3,
+  format: 'png' | 'webp' = 'png',
+  quality = 0.78
+): Promise<ArrayBuffer> {
+  const s = useStore.getState()
+  const shot = s.shot()
+  const manager = getSceneManager()
+  if (!shot || !manager) throw new Error('No shot selected or viewport not ready.')
+  const safeTimes = times.length > 0 ? times : [0]
+  const cols = Math.min(Math.max(1, columns), safeTimes.length)
+  const rows = Math.ceil(safeTimes.length / cols)
+  const pad = 18
+  const captionH = 30
+  const sheet = document.createElement('canvas')
+  sheet.width = cols * cellWidth + (cols + 1) * pad
+  sheet.height = rows * (cellHeight + captionH) + (rows + 1) * pad
+  const ctx = sheet.getContext('2d')
+  if (!ctx) throw new Error('2D canvas unavailable.')
+  ctx.fillStyle = '#111113'
+  ctx.fillRect(0, 0, sheet.width, sheet.height)
+
+  const { canvas, renderer } = getExportRenderer()
+  const ratio = ASPECT_RATIOS[shot.aspect]
+  let tw = cellWidth
+  let th = Math.round(cellWidth / ratio)
+  if (th > cellHeight) {
+    th = cellHeight
+    tw = Math.round(cellHeight * ratio)
+  }
+  canvas.width = tw
+  canvas.height = th
+
+  manager.suspendLive = true
+  try {
+    for (let i = 0; i < safeTimes.length; i++) {
+      const t = Math.max(0, Math.min(shot.duration, safeTimes[i]!))
+      manager.renderFrameAt(renderer, t, tw, th, 'clean', { showLabels: true })
+      const col = i % cols
+      const row = Math.floor(i / cols)
+      const x = pad + col * (cellWidth + pad)
+      const y = pad + row * (cellHeight + captionH + pad)
+      ctx.drawImage(canvas, x + Math.floor((cellWidth - tw) / 2), y + Math.floor((cellHeight - th) / 2))
+      ctx.fillStyle = '#ececf1'
+      ctx.font = '600 15px -apple-system, sans-serif'
+      ctx.fillText(`${shot.name} · phase ${i + 1}/${safeTimes.length} · t=${t.toFixed(2)}s`, x, y + cellHeight + 21)
+    }
+    const mime = format === 'webp' ? 'image/webp' : 'image/png'
+    const blob = await new Promise<Blob | null>((resolve) =>
+      sheet.toBlob(resolve, mime, format === 'webp' ? quality : undefined)
+    )
+    if (!blob) throw new Error(`${format.toUpperCase()} encode failed`)
+    return blob.arrayBuffer()
+  } finally {
+    manager.suspendLive = false
+  }
+}
+
+/** Backward-compatible deterministic PNG review sheet. */
+export async function renderReviewSheetPng(
+  times: number[],
+  cellWidth = 480,
+  cellHeight = 270,
+  columns = 3
+): Promise<ArrayBuffer> {
+  return renderReviewSheet(times, cellWidth, cellHeight, columns, 'png')
 }
 
 /** Raw-pixel variant for the determinism diagnostic. */
@@ -336,6 +413,57 @@ export async function exportShot(opts: ExportOptions): Promise<ExportResult> {
     // --- Prompt, metadata, ComfyUI workflow
     await window.blockout.exportWriteFile(`${pkg}/prompt.txt`, generatePrompt(scene, shot, profile) + '\n')
     await window.blockout.exportWriteFile(`${pkg}/metadata.json`, buildMetadata(scene, shot, profile))
+    const shotStem = sanitize(shot.name)
+    await window.blockout.exportWriteFile(
+      `${pkg}/reference_roles.json`,
+      JSON.stringify(
+        {
+          schema: 1,
+          profile: profile.id,
+          principle: 'motion_and_look_are_separate',
+          heroFrame: {
+            time: shot.director?.heroFrameTime ?? null,
+            approved: shot.director?.heroFrameApproved ?? false,
+            authority: 'representative composition gate'
+          },
+          director: {
+            intent: shot.director?.intent ?? null,
+            cameraRecipeId: shot.director?.cameraRecipeId ?? null
+          },
+          projectReferences: (doc.references ?? []).map((ref) => ({
+            role: ref.role,
+            name: ref.name,
+            file: ref.relativePath,
+            note: ref.note ?? null,
+            subjectKey: ref.subjectKey ?? null
+          })),
+          roles: {
+            motion: {
+              file: opts.passes.clean ? `${shotStem}_reference.mp4` : null,
+              authority: ['camera trajectory', 'framing', 'blocking', 'screen direction', 'timing']
+            },
+            composition: {
+              folder: 'stills/',
+              authority: ['key compositions', 'subject placement']
+            },
+            identity: {
+              source: 'external',
+              authority: ['character identity', 'product identity', 'wardrobe']
+            },
+            location: {
+              source: 'external',
+              authority: ['environment appearance']
+            },
+            style: {
+              source: 'external',
+              authority: ['lighting look', 'palette', 'render / photographic style']
+            }
+          }
+        },
+        null,
+        2
+      ) + '\n'
+    )
     if (profile.refModes.includes('depthVideo') || profile.id.startsWith('wan') || profile.id.startsWith('ltx')) {
       const workflow = buildComfyWorkflow(profile, shot, `${sanitize(shot.name)}_depth.mp4`, generatePrompt(scene, shot, profile))
       await window.blockout.exportWriteFile(`${pkg}/comfyui-workflow.json`, workflow)
@@ -355,6 +483,7 @@ export async function exportShot(opts: ExportOptions): Promise<ExportResult> {
         `  stills/           frame at every camera mark + first/last + top-down blocking diagram`,
         `  prompt.txt        copy-paste prompt tailored to ${profile.name}`,
         `  metadata.json     machine-readable marks/lenses/timings`,
+        `  reference_roles.json  tells the generator/agent which reference owns motion vs appearance`,
         ``
       ]
         .filter((l): l is string => l !== null)

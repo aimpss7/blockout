@@ -40,7 +40,9 @@ test('camera tab pins camera controls regardless of selection', async () => {
   await page.getByRole('button', { name: '🎥 Camera' }).click()
   await expect(page.getByText('Position & aim')).toBeVisible()
   await expect(page.getByText('Track subject')).toBeVisible()
-  await expect(page.getByText('Camera moves')).toBeVisible()
+  await expect(page.getByText('Advanced camera', { exact: true })).toBeVisible()
+  await page.getByText('Advanced camera', { exact: true }).click()
+  await expect(page.getByText('Advanced camera moves')).toBeVisible()
   // Back to selection view.
   await page.getByRole('button', { name: 'Selection', exact: true }).click()
   await expect(page.getByText('Motion presets')).toBeVisible()
@@ -55,7 +57,11 @@ test('numeric camera pose fields edit the active mark', async () => {
   expect(before.x).toBeCloseTo(3, 3)
   await page.getByRole('button', { name: '🎥 Camera' }).click()
   await page.waitForTimeout(150)
-  const xField = page.locator('.field', { hasText: 'X' }).locator('input').first()
+  const xField = page
+    .locator('.panel-section', { hasText: 'Position & aim' })
+    .locator('.field', { hasText: /^X$/ })
+    .locator('input')
+    .first()
   await xField.fill('7.5')
   await page.waitForTimeout(150)
   const after = await page.evaluate(() => {

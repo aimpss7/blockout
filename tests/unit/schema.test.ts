@@ -34,7 +34,7 @@ describe('schema round-trip', () => {
     const doc = createProject('Stable')
     const a = serializeProject(doc)
     // Shuffle top-level keys by rebuilding the object in a different order.
-    const shuffled = JSON.parse(JSON.stringify({ scenes: doc.scenes, version: doc.version, settings: doc.settings, name: doc.name, id: doc.id }))
+    const shuffled = JSON.parse(JSON.stringify({ scenes: doc.scenes, references: doc.references, version: doc.version, settings: doc.settings, name: doc.name, id: doc.id }))
     const b = serializeProject(shuffled)
     expect(a).toBe(b)
   })
@@ -72,11 +72,47 @@ describe('schema round-trip', () => {
     })
   })
 
+  it('round-trips semantic references and rejects paths outside refs/', () => {
+    const doc = createProject('Refs')
+    doc.references = [
+      {
+        id: 'ref_1',
+        role: 'product',
+        name: 'Blue bottle',
+        relativePath: 'refs/bottle.webp',
+        createdAt: '2026-09-22T00:00:00.000Z'
+      }
+    ]
+    const parsed = parseProject(serializeProject(doc))
+    expect(parsed.issues).toEqual([])
+    expect(parsed.doc?.references).toEqual(doc.references)
+
+    const bad = JSON.parse(serializeProject(doc)) as any
+    bad.references[0].relativePath = '../outside.webp'
+    expect(validateProject(bad).some((issue) => issue.path.includes('relativePath'))).toBe(true)
+  })
+
   it('flags a shot referencing a missing blocking take', () => {
     const doc = createProject('Bad')
     doc.scenes[0]!.shots[0]!.blockingTakeId = 'take_missing'
     const issues = validateProject(JSON.parse(serializeProject(doc)))
     expect(issues.some((i) => i.message.includes('blocking take'))).toBe(true)
+  })
+
+  it('rejects invalid camera/project invariants at load boundaries', () => {
+    const doc = createProject('Bad camera')
+    const raw = JSON.parse(serializeProject(doc)) as any
+    raw.scenes[0].shots[0].aspect = '5:7'
+    raw.scenes[0].shots[0].camera.sensorId = 'phone'
+    raw.scenes[0].shots[0].camera.rig = 'magic'
+    raw.scenes[0].shots[0].camera.marks = [
+      { id: 'c1', time: 0, hold: 0, easeIn: 0, easeOut: 0, position: { x: 0, y: 1, z: 1 }, pan: 0, tilt: 0, roll: 0, focalLength: 500 }
+    ]
+    const issues = validateProject(raw)
+    expect(issues.some((issue) => issue.path.endsWith('.aspect'))).toBe(true)
+    expect(issues.some((issue) => issue.path.endsWith('.sensorId'))).toBe(true)
+    expect(issues.some((issue) => issue.path.endsWith('.rig'))).toBe(true)
+    expect(issues.some((issue) => issue.path.includes('focalLength'))).toBe(true)
   })
 
   it('new scenes come with a master take and one shot', () => {

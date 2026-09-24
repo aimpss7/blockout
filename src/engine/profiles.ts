@@ -31,6 +31,22 @@ export interface GeneratorProfile {
 
 export const BUILTIN_PROFILES: GeneratorProfile[] = [
   {
+    id: 'seedance-2.5',
+    name: 'Seedance 2.5',
+    vendor: 'ByteDance',
+    kind: 'video',
+    maxDuration: 30,
+    recommendedDuration: 8,
+    aspects: ['16:9', '9:16', '4:3', '1:1'],
+    exportWidth: 1920,
+    fps: 24,
+    refModes: ['referenceVideo', 'stills'],
+    attachHint:
+      'Use the reference MP4 as the white-model / motion reference for camera, blocking, and timing. Add separate polished stills for character or product identity, location, and visual style.',
+    adherenceClause:
+      'Use the attached reference video as the spatial and motion authority: preserve camera trajectory, framing, subject blocking, screen direction, and timing. Use the separate image references as the appearance authority.'
+  },
+  {
     id: 'seedance-2',
     name: 'Seedance 2.0',
     vendor: 'ByteDance',
@@ -159,6 +175,10 @@ export const BUILTIN_PROFILES: GeneratorProfile[] = [
     adherenceClause: 'Match the reference composition and subject placement.'
   }
 ]
+
+export function profileSupportsAspect(profile: GeneratorProfile, aspect: AspectId): boolean {
+  return profile.aspects.includes(aspect)
+}
 
 export function getProfile(id: string, extra: GeneratorProfile[] = []): GeneratorProfile {
   return (

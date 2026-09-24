@@ -3,6 +3,10 @@ appId: com.wassermanproductions.blockout
 productName: Blockout
 # Package scripts run redistribution audits before electron-builder. Windows
 # uses the pinned BtbN GPL pair; macOS builds the pinned GPL pair from source.
+publish:
+  provider: github
+  owner: aimpss7
+  repo: blockout
 directories:
   output: release
 artifactName: ${productName}-${version}-${os}-${arch}.${ext}
@@ -48,6 +52,7 @@ mac:
       to: ffmpeg/PROVENANCE.md
   target:
     - target: dmg
+    - target: zip
   # Unsigned by default. For distribution beyond your own machines, set
   # identity + notarize (Apple Developer ID) — see README "Sharing builds".
   identity: null

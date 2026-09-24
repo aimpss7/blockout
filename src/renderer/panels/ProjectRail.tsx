@@ -14,6 +14,15 @@ function cloneShot(shot: Shot, name: string): Shot {
   copy.id = newId('shot')
   copy.name = name
   for (const mark of copy.camera.marks) mark.id = newId('cmark')
+  // A duplicate is a new directing decision. Keep useful provenance/intent,
+  // but never inherit an approval or AI locks from the source shot.
+  if (copy.director) {
+    copy.director = {
+      ...copy.director,
+      heroFrameApproved: false,
+      locks: undefined
+    }
+  }
   return copy
 }
 

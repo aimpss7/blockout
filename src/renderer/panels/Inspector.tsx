@@ -14,6 +14,9 @@ import { GAITS } from '@engine/gaits'
 import { RIGS } from '@engine/rigs'
 import { MOTION_PRESETS, type MotionPreset } from '@engine/motions'
 import { CAMERA_MOVE_PRESETS } from '@engine/camera-moves'
+import { CAMERA_RECIPES } from '@engine/director'
+import { executeControlAction } from '../control/handler'
+import { uiText, useUiLanguage } from '../i18n'
 import { ACTION_PRESETS } from '@engine/action-presets'
 import { ShotEvaluator } from '@engine/evaluate'
 import { newId } from '@engine/ids'
@@ -52,7 +55,7 @@ const LIGHTING: { id: LightingPresetId; label: string }[] = [
   { id: 'blueHourSky', label: 'Blue Hour Sky' }
 ]
 
-const ASPECTS: AspectId[] = ['16:9', '9:16', '2.39:1', '4:3', '1:1']
+const ASPECTS: AspectId[] = ['9:16', '3:4', '4:5', '1:1', '16:9', '4:3', '2.39:1']
 const SHOT_SIZE_BTNS: ShotSizeId[] = ['WS', 'FS', 'MS', 'MCU', 'CU']
 
 function num(v: string): number | null {
@@ -586,7 +589,11 @@ function EntityInspector({
   const editEntity = (label: string, fn: (e: Entity) => void): void => {
     mutate(label, (doc) => {
       const en = findEntity(doc, scene.id, entityId)
-      if (en) fn(en)
+      if (en) {
+        fn(en)
+        const sh = findShotOrDraft(doc, scene.id, shot.id)
+        if (sh) sh.director = { ...sh.director, heroFrameApproved: false }
+      }
     })
   }
 
@@ -712,6 +719,41 @@ function EntityInspector({
             </div>
           </>
         )}
+        <div className="field">
+          <label>Base color</label>
+          <div className="field-row">
+            <input
+              type="color"
+              value={entity.color ?? '#86868e'}
+              onChange={(e) => editEntity('object color', (en) => (en.color = e.target.value))}
+            />
+            <input
+              type="text"
+              value={entity.color ?? ''}
+              placeholder="#86868e"
+              onChange={(e) => {
+                const value = e.target.value.trim()
+                if (/^#[0-9a-fA-F]{6}$/.test(value)) editEntity('object color', (en) => (en.color = value))
+              }}
+            />
+            {entity.color && (
+              <button className="btn small" onClick={() => editEntity('reset object color', (en) => delete en.color)}>
+                Reset
+              </button>
+            )}
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 5 }}>
+            {SWATCHES.map((c) => (
+              <button
+                key={c}
+                className="swatch"
+                style={{ background: c }}
+                title={c}
+                onClick={() => editEntity('object color', (en) => (en.color = c))}
+              />
+            ))}
+          </div>
+        </div>
         <div className="field">
           <label>
             <input
@@ -1326,7 +1368,10 @@ function CameraPoseSection({ scene, shot }: { scene: Scene; shot: Shot }): JSX.E
     mutate(label, (doc) => {
       const sh = findShotOrDraft(doc, scene.id, shot.id)
       const m = sh?.camera.marks.find((x) => x.id === id)
-      if (m) fn(m)
+      if (m) {
+        fn(m)
+        if (sh) sh.director = { ...sh.director, heroFrameApproved: false }
+      }
     })
   }
 
@@ -1399,6 +1444,79 @@ function CameraPoseSection({ scene, shot }: { scene: Scene; shot: Shot }): JSX.E
   )
 }
 
+/* ---------------------- director camera recipes --------------------- */
+
+function DirectorCameraRecipesSection({ scene, shot }: { scene: Scene; shot: Shot }): JSX.Element {
+  const language = useUiLanguage()
+  const mutate = useMutate()
+  const selection = useStore((state) => state.selection)
+  const [recipeId, setRecipeId] = useState(CAMERA_RECIPES[0]!.id)
+  const recipe = CAMERA_RECIPES.find((item) => item.id === recipeId) ?? CAMERA_RECIPES[0]!
+  const groups = [...new Set(CAMERA_RECIPES.map((item) => item.useCase ?? 'character'))]
+
+  const apply = (): void => {
+    const subject =
+      selection?.kind === 'entity'
+        ? scene.entities.find((entity) => entity.id === selection.entityId)
+        : scene.entities.find((entity) => entity.assetId.startsWith('person.')) ?? scene.entities[0]
+    mutate(`director recipe: ${recipe.name}`, (doc) => {
+      const sh = findShotOrDraft(doc, scene.id, shot.id)
+      if (!sh) return
+      // Locks protect against AI tools, not the human pressing this button.
+      if (recipe.defaultLens !== null) {
+        for (const mark of sh.camera.marks) mark.focalLength = recipe.defaultLens
+      }
+      sh.director = {
+        ...sh.director,
+        intent: recipe.intent,
+        cameraRecipeId: recipe.id,
+        cameraSubjectEntityId: subject?.id,
+        heroFrameApproved: false
+      }
+    })
+    // Apply after the document metadata mutation so SceneManager reads the
+    // intended subject id rather than whichever entity happened to be selected.
+    if (subject) useStore.getState().setSelection({ kind: 'entity', entityId: subject.id })
+    getSceneManager()?.applyCameraMove(recipe.presetId, recipe.id)
+
+  }
+
+  return (
+    <div className="panel-section">
+      <div className="panel-title">{uiText(language, 'directorCamera')}</div>
+      <div className="field">
+        <label>Choose by shot purpose</label>
+        <select value={recipeId} onChange={(e) => setRecipeId(e.target.value)}>
+          {groups.map((group) => (
+            <optgroup key={group} label={group.toUpperCase()}>
+              {CAMERA_RECIPES.filter((item) => (item.useCase ?? 'character') === group).map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name} · {item.intent}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 8 }}>
+        {recipe.defaultLens !== null && <span className="badge">{recipe.defaultLens}mm</span>}
+        {recipe.shotSize && <span className="badge">{recipe.shotSize}</span>}
+        {recipe.height && <span className="badge">{recipe.height}</span>}
+        <span className="badge">{recipe.pacing}</span>
+      </div>
+      <p style={{ color: 'var(--text-dim)', fontSize: 11, lineHeight: 1.4, marginBottom: 4 }}>
+        <b>Why:</b> {recipe.shotFunction}
+      </p>
+      <p style={{ color: 'var(--text-faint)', fontSize: 11, lineHeight: 1.4, marginBottom: 8 }}>
+        {recipe.description}
+      </p>
+      <button className="btn primary" style={{ width: '100%' }} onClick={apply}>
+        Apply director recipe
+      </button>
+    </div>
+  )
+}
+
 /* ----------------------- camera move presets ------------------------ */
 
 /**
@@ -1420,7 +1538,7 @@ function CameraMovesSection({ scene }: { scene: Scene }): JSX.Element {
 
   return (
     <div className="panel-section">
-      <div className="panel-title">Camera moves</div>
+      <div className="panel-title">Advanced camera moves</div>
       <div className="field">
         <label>
           {CAMERA_MOVE_PRESETS.length} classic moves — built around{' '}
@@ -1456,14 +1574,108 @@ function CameraMovesSection({ scene }: { scene: Scene }): JSX.Element {
   )
 }
 
+/* ---------------------- AI director approval ---------------------- */
+
+function DirectorApprovalSection({ scene, shot }: { scene: Scene; shot: Shot }): JSX.Element {
+  const mutate = useMutate()
+  const time = useStore((s) => s.time)
+  const director = shot.director
+  const locks = director?.locks ?? {}
+
+  const editDirector = (label: string, fn: (sh: Shot) => void): void => {
+    mutate(label, (doc) => {
+      const sh = findShotOrDraft(doc, scene.id, shot.id)
+      if (sh) fn(sh)
+    })
+  }
+
+  const setLock = (key: 'camera' | 'lens' | 'framing' | 'staging', value: boolean): void => {
+    editDirector('AI director lock', (sh) => {
+      sh.director = {
+        ...sh.director,
+        locks: { ...sh.director?.locks, [key]: value }
+      }
+    })
+  }
+
+  const approveHero = (): void => {
+    editDirector('approve hero frame', (sh) => {
+      sh.director = {
+        ...sh.director,
+        heroFrameTime: clamp(time, 0, sh.duration),
+        heroFrameApproved: true,
+        locks: {
+          ...sh.director?.locks,
+          camera: true,
+          lens: true,
+          framing: true
+        }
+      }
+    })
+  }
+
+  return (
+    <div className="panel-section">
+      <div className="panel-title">AI director</div>
+      <p style={{ color: 'var(--text-faint)', fontSize: 11, lineHeight: 1.4, marginBottom: 8 }}>
+        Hero Frame First: approve the composition you want to preserve, then let the agent work
+        around it. Human locks only restrict agent tools — manual editing stays available.
+      </p>
+
+      <button
+        className={director?.heroFrameApproved ? 'btn' : 'btn primary'}
+        style={{ width: '100%', marginBottom: 8 }}
+        onClick={approveHero}
+      >
+        {director?.heroFrameApproved
+          ? `Re-approve hero frame at ${time.toFixed(2)}s`
+          : `Approve hero frame at ${time.toFixed(2)}s`}
+      </button>
+
+      {director?.heroFrameApproved && (
+        <p style={{ color: 'var(--text-dim)', fontSize: 11, margin: '0 0 8px' }}>
+          Approved at {(director.heroFrameTime ?? 0).toFixed(2)}s
+          {director.cameraRecipeId ? ` · ${director.cameraRecipeId}` : ''}
+        </p>
+      )}
+
+      <details>
+        <summary style={{ cursor: 'pointer', color: 'var(--text-dim)', fontSize: 11 }}>
+          AI control · {locks.camera || locks.lens || locks.framing || locks.staging ? 'protected' : 'unlocked'}
+        </summary>
+        <div style={{ marginTop: 7 }}>
+          {([
+            ['camera', 'Camera path'],
+            ['lens', 'Lens'],
+            ['framing', 'Framing'],
+            ['staging', 'Scene staging']
+          ] as const).map(([key, label]) => (
+            <button
+              key={key}
+              className={`toggle-row ${locks[key] ? 'active' : ''}`}
+              onClick={() => setLock(key, !locks[key])}
+              type="button"
+            >
+              <span>{label}</span>
+              <span className="toggle-switch"><span /></span>
+            </button>
+          ))}
+        </div>
+      </details>
+    </div>
+  )
+}
+
 /* =========================== C) Camera ============================= */
 
 function CameraInspector({ scene, shot }: { scene: Scene; shot: Shot }): JSX.Element {
+  const language = useUiLanguage()
   const mutate = useMutate()
   const setSelection = useStore((s) => s.setSelection)
   const switchCamera = useStore((s) => s.switchCamera)
   const addCameraToShot = useStore((s) => s.addCameraToShot)
   const clearCameraMarks = useStore((s) => s.clearCameraMarks)
+  const [customLens, setCustomLens] = useState('')
 
   const cam = shot.camera
   const orderedMarks = [...cam.marks].sort((a, b) => a.time - b.time)
@@ -1476,7 +1688,10 @@ function CameraInspector({ scene, shot }: { scene: Scene; shot: Shot }): JSX.Ele
   const editCam = (label: string, fn: (c: Shot['camera']) => void): void => {
     mutate(label, (doc) => {
       const sh = findShotOrDraft(doc, scene.id, shot.id)
-      if (sh) fn(sh.camera)
+      if (sh) {
+        fn(sh.camera)
+        sh.director = { ...sh.director, heroFrameApproved: false }
+      }
     })
   }
 
@@ -1498,6 +1713,41 @@ function CameraInspector({ scene, shot }: { scene: Scene; shot: Shot }): JSX.Ele
           ))}
           <button onClick={() => addCameraToShot()} title="Add a camera">
             +
+          </button>
+        </div>
+      </div>
+
+      <DirectorApprovalSection scene={scene} shot={shot} />
+
+      <div className="panel-section">
+        <div className="panel-title">Director files</div>
+        <p style={{ color: 'var(--text-faint)', fontSize: 11, lineHeight: 1.4, marginBottom: 7 }}>
+          Portable .shot.json uses the same Director Schema as ChatGPT, Codex and Tunnel.
+        </p>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button
+            className="btn"
+            style={{ flex: 1 }}
+            onClick={() =>
+              void executeControlAction('ui_import_shot_plan').then(() =>
+                useStore.getState().toast('Shot Plan imported.', 'success')
+              ).catch((e) => useStore.getState().toast(`Shot Plan import failed: ${(e as Error).message}`, 'error'))
+            }
+          >
+            Import
+          </button>
+          <button
+            className="btn"
+            style={{ flex: 1 }}
+            onClick={() =>
+              void executeControlAction('ui_export_shot_plan').then((result) => {
+                const path = (result as { path?: string }).path
+                useStore.getState().toast('Shot Plan exported.', 'success')
+                if (path) void window.blockout.showFolder(path)
+              }).catch((e) => useStore.getState().toast(`Shot Plan export failed: ${(e as Error).message}`, 'error'))
+            }
+          >
+            Export
           </button>
         </div>
       </div>
@@ -1532,6 +1782,38 @@ function CameraInspector({ scene, shot }: { scene: Scene; shot: Shot }): JSX.Ele
                 {fl}
               </button>
             ))}
+          </div>
+        </div>
+        <div className="field">
+          <label>{uiText(language, 'exactFocal')} (8–300mm)</label>
+          <div className="field-row">
+            <input
+              type="number"
+              min={8}
+              max={300}
+              step={1}
+              placeholder={String(Math.round(currentFocal))}
+              value={customLens}
+              onChange={(e) => setCustomLens(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter') return
+                const value = num(customLens)
+                if (value === null) return
+                emit('setLens', { focalLength: clamp(value, 8, 300) })
+                setCustomLens('')
+              }}
+            />
+            <button
+              className="btn"
+              onClick={() => {
+                const value = num(customLens)
+                if (value === null) return
+                emit('setLens', { focalLength: clamp(value, 8, 300) })
+                setCustomLens('')
+              }}
+            >
+              Set mm
+            </button>
           </div>
         </div>
         <div className="field">
@@ -1579,10 +1861,14 @@ function CameraInspector({ scene, shot }: { scene: Scene; shot: Shot }): JSX.Ele
         )}
       </div>
 
-      <CameraMovesSection scene={scene} />
+      <DirectorCameraRecipesSection scene={scene} shot={shot} />
 
-      <div className="panel-section">
-        <div className="panel-title">Rig</div>
+      <details className="advanced-section">
+        <summary>{uiText(language, 'advancedCamera')}</summary>
+        <CameraMovesSection scene={scene} />
+
+        <div className="panel-section">
+          <div className="panel-title">Rig</div>
         <div className="seg" style={{ marginBottom: 10 }}>
           {(Object.keys(RIGS) as RigId[]).map((id) => (
             <button
@@ -1633,6 +1919,8 @@ function CameraInspector({ scene, shot }: { scene: Scene; shot: Shot }): JSX.Ele
           </div>
         )}
       </div>
+
+      </details>
 
       <div className="panel-section">
         <div className="panel-title">Marks</div>
@@ -1708,7 +1996,10 @@ function MarkInspector({
         const tk = sc?.blocking.find((b) => b.id === sh.blockingTakeId)
         target = tk?.tracks.find((t) => t.entityId === entityId)?.marks.find((m) => m.id === markId)
       }
-      if (target) fn(target)
+      if (target) {
+        fn(target)
+        sh.director = { ...sh.director, heroFrameApproved: false }
+      }
     })
   }
 
@@ -1838,6 +2129,22 @@ function MarkInspector({
 
       {cameraMark && (
         <div className="panel-section">
+          <button
+            className="btn primary"
+            style={{ width: '100%' }}
+            onClick={() => setSelection({ kind: 'camera' })}
+          >
+            Edit camera pose at this mark
+          </button>
+          <p style={{ color: 'var(--text-faint)', fontSize: 11, lineHeight: 1.4, marginTop: 7 }}>
+            The playhead is already on this keyframe. Open the Camera panel to adjust position,
+            aim, lens, or rig without touching a neighboring mark.
+          </p>
+        </div>
+      )}
+
+      {cameraMark && (
+        <div className="panel-section">
           <div className="panel-title">Optics</div>
           <div className="field">
             <label>Focal length (mm)</label>
@@ -1930,6 +2237,7 @@ function MarkInspector({
               if (!sh) return
               if (isCamera) {
                 sh.camera.marks = sh.camera.marks.filter((m) => m.id !== markId)
+                sh.director = { ...sh.director, heroFrameApproved: false }
               } else {
                 const sc = findScene(doc, scene.id)
                 const tk = sc?.blocking.find((b) => b.id === sh.blockingTakeId)

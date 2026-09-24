@@ -27,7 +27,8 @@ export function createProject(name: string): ProjectDoc {
     version: SCHEMA_VERSION,
     id: newId('proj'),
     name,
-    settings: { defaultProfileId: 'seedance-2' },
+    settings: { defaultProfileId: 'seedance-2.5' },
+    references: [],
     scenes: []
   }
   doc.scenes.push(createScene(1))
@@ -131,6 +132,30 @@ export function validateProject(doc: unknown): ValidationIssue[] {
   const p = doc as Record<string, unknown>
   if (p.version !== 1) err('version', `unsupported schema version ${String(p.version)}`)
   if (typeof p.name !== 'string') err('name', 'missing project name')
+  if (p.references !== undefined) {
+    if (!Array.isArray(p.references)) {
+      err('references', 'must be an array')
+    } else {
+      const roles = new Set(['character', 'product', 'location', 'style', 'motion'])
+      ;(p.references as unknown[]).forEach((ref, i) => {
+        if (!ref || typeof ref !== 'object' || Array.isArray(ref)) {
+          err(`references[${i}]`, 'reference card is not an object')
+          return
+        }
+        const card = ref as Record<string, unknown>
+        if (typeof card.id !== 'string' || !card.id) err(`references[${i}].id`, 'missing id')
+        if (typeof card.name !== 'string' || !card.name) err(`references[${i}].name`, 'missing name')
+        if (typeof card.role !== 'string' || !roles.has(card.role)) err(`references[${i}].role`, 'unknown role')
+        if (
+          typeof card.relativePath !== 'string' ||
+          normalizeProjectRelativePath(card.relativePath) === null ||
+          !card.relativePath.replaceAll('\\', '/').startsWith('refs/')
+        ) {
+          err(`references[${i}].relativePath`, 'must be a relative path under refs/')
+        }
+      })
+    }
+  }
   if (!Array.isArray(p.scenes)) {
     err('scenes', 'missing scenes array')
     return issues
@@ -164,10 +189,30 @@ export function validateProject(doc: unknown): ValidationIssue[] {
         const shot = sh as Record<string, unknown>
         if (typeof shot.duration !== 'number' || shot.duration <= 0)
           err(`scenes[${i}].shots[${j}].duration`, 'duration must be > 0')
+        const aspects = new Set(['16:9', '9:16', '3:4', '4:5', '2.39:1', '4:3', '1:1'])
+        if (typeof shot.aspect !== 'string' || !aspects.has(shot.aspect))
+          err(`scenes[${i}].shots[${j}].aspect`, 'unknown aspect ratio')
+        if (typeof shot.fps !== 'number' || shot.fps <= 0 || shot.fps > 120)
+          err(`scenes[${i}].shots[${j}].fps`, 'fps must be between 0 and 120')
         if (typeof shot.blockingTakeId !== 'string' || !takeIds.has(shot.blockingTakeId))
           err(`scenes[${i}].shots[${j}].blockingTakeId`, 'references a missing blocking take')
         const camera = shot.camera as Record<string, unknown> | undefined
-        if (!camera || !Array.isArray(camera.marks)) err(`scenes[${i}].shots[${j}].camera`, 'missing camera')
+        if (!camera || !Array.isArray(camera.marks)) {
+          err(`scenes[${i}].shots[${j}].camera`, 'missing camera')
+        } else {
+          const sensors = new Set(['super16', 'super35', 'fullFrame', 'imax65'])
+          const rigs = new Set(['sticks', 'dolly', 'steadicam', 'handheld', 'crane', 'drone', 'carMount'])
+          if (typeof camera.sensorId !== 'string' || !sensors.has(camera.sensorId))
+            err(`scenes[${i}].shots[${j}].camera.sensorId`, 'unknown sensor')
+          if (typeof camera.rig !== 'string' || !rigs.has(camera.rig))
+            err(`scenes[${i}].shots[${j}].camera.rig`, 'unknown camera rig')
+          ;(camera.marks as unknown[]).forEach((mark, k) => {
+            if (!mark || typeof mark !== 'object') return
+            const focal = (mark as Record<string, unknown>).focalLength
+            if (typeof focal !== 'number' || focal < 8 || focal > 300)
+              err(`scenes[${i}].shots[${j}].camera.marks[${k}].focalLength`, 'must be 8–300mm')
+          })
+        }
         const reference = shot.referenceVideo as Record<string, unknown> | undefined
         if (reference &&
           (typeof reference.path !== 'string' || normalizeProjectRelativePath(reference.path) === null)) {
@@ -198,6 +243,11 @@ function requirePortableProjectPath(value: string, location: string): string {
 }
 
 function normalizeProjectPaths(doc: ProjectDoc): ProjectDoc {
+  if (doc.references) {
+    for (const [index, ref] of doc.references.entries()) {
+      ref.relativePath = requirePortableProjectPath(ref.relativePath, `references[${index}].relativePath`)
+    }
+  }
   for (const [sceneIndex, scene] of doc.scenes.entries()) {
     for (const [entityIndex, entity] of scene.entities.entries()) {
       if (entity.sourceFile !== undefined) {
@@ -247,6 +297,14 @@ export function serializeProject(doc: ProjectDoc): string {
  * value is replaced with its safe default rather than rejected.
  */
 function migrateProject(doc: ProjectDoc): ProjectDoc {
+  if (!Array.isArray(doc.references)) doc.references = []
+  doc.references = doc.references.filter((ref) =>
+    typeof ref?.id === 'string' &&
+    typeof ref?.name === 'string' &&
+    typeof ref?.relativePath === 'string' &&
+    normalizeProjectRelativePath(ref.relativePath) !== null &&
+    ['character', 'product', 'location', 'style', 'motion'].includes(ref.role)
+  )
   for (const scene of doc.scenes) {
     const raw = (scene as { scans?: unknown }).scans
     if (!Array.isArray(raw)) {
